@@ -3,37 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Émagramme AROME</title>
+<title>Parameteo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
 <style>
 /* Layout : bandeau source de données, puis diagramme (2/3) + panneau d'analyse (1/3), tableau des niveaux en dessous */
+/* Carte VFR : fond bleu-gris de carte aéronautique, encre marine, bleu de carte en accent, magenta des espaces aériens pour les repères (plafonds), bistre du relief */
 :root{
-  --paper:#f5f7f4; --surface:#ffffff; --ink:#1b2420; --muted:#5b6862; --rule:#d8ded9;
-  --accent:#0d6a6a; --accent-ink:#ffffff;
-  --iso:#c4813f; --dry:#5c9a5e; --moist:#3a7db0; --mixr:#9a63ad;
-  --temp:#d1332a; --dew:#1b5fc4; --parcel:#1b2420; --ground:#d7d0c2;
-  --cape:rgba(209,51,42,.16); --cin:rgba(27,95,196,.14);
-  --good:#2f7d46; --warn:#b7791f; --bad:#c0392b;
-  --f-display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
-  --f-body:"Barlow","Segoe UI",Roboto,Arial,sans-serif;
-  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --paper:#f2f5f7; --surface:#ffffff; --band:#e3ecf3; --ink:#13233a; --muted:#566679; --rule:#c9d5df;
+  --accent:#1f5fae; --accent-ink:#ffffff; --hi:#b4307a;
+  --iso:#a9773f; --dry:#6a9a63; --moist:#4b8fc0; --mixr:#8b5fb0;
+  --temp:#d03228; --dew:#1f5fae; --parcel:#13233a; --ground:#dcd3c3;
+  --cape:rgba(208,50,40,.15); --cin:rgba(31,95,174,.14);
+  --good:#2e7d4f; --warn:#c27a12; --bad:#c2342b;
+  --f-display:"Archivo Narrow","Arial Narrow",Arial,sans-serif;
+  --f-body:"Archivo","Segoe UI",Roboto,Arial,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --paper:#111614; --surface:#18201c; --ink:#e4ebe6; --muted:#93a19a; --rule:#2a332e;
-  --accent:#4fb8b0; --accent-ink:#0b1210;
-  --iso:#a8733f; --dry:#64a56a; --moist:#5292c6; --mixr:#b086c4;
-  --temp:#ff6a55; --dew:#62a6ff; --parcel:#e4ebe6; --ground:#2b2823;
-  --cape:rgba(255,106,85,.18); --cin:rgba(98,166,255,.16);
-  --good:#5cc27c; --warn:#e0a948; --bad:#ff7a6b; color-scheme:dark}}
+  --paper:#0f1824; --surface:#132033; --band:#16243a; --ink:#e2eaf3; --muted:#93a5ba; --rule:#26384f;
+  --accent:#6aa7ef; --accent-ink:#0c1522; --hi:#e86aae;
+  --iso:#b48553; --dry:#6fae6a; --moist:#5b9bd0; --mixr:#a985cf;
+  --temp:#ff6a5c; --dew:#6aa7ef; --parcel:#e2eaf3; --ground:#2b2c2a;
+  --cape:rgba(255,106,92,.18); --cin:rgba(106,167,239,.16);
+  --good:#5cc487; --warn:#e8a645; --bad:#ff7468; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --paper:#111614; --surface:#18201c; --ink:#e4ebe6; --muted:#93a19a; --rule:#2a332e;
-  --accent:#4fb8b0; --accent-ink:#0b1210;
-  --iso:#a8733f; --dry:#64a56a; --moist:#5292c6; --mixr:#b086c4;
-  --temp:#ff6a55; --dew:#62a6ff; --parcel:#e4ebe6; --ground:#2b2823;
-  --cape:rgba(255,106,85,.18); --cin:rgba(98,166,255,.16);
-  --good:#5cc27c; --warn:#e0a948; --bad:#ff7a6b; color-scheme:dark}
+  --paper:#0f1824; --surface:#132033; --band:#16243a; --ink:#e2eaf3; --muted:#93a5ba; --rule:#26384f;
+  --accent:#6aa7ef; --accent-ink:#0c1522; --hi:#e86aae;
+  --iso:#b48553; --dry:#6fae6a; --moist:#5b9bd0; --mixr:#a985cf;
+  --temp:#ff6a5c; --dew:#6aa7ef; --parcel:#e2eaf3; --ground:#2b2c2a;
+  --cape:rgba(255,106,92,.18); --cin:rgba(106,167,239,.16);
+  --good:#5cc487; --warn:#e8a645; --bad:#ff7468; color-scheme:dark}
 
 *{box-sizing:border-box}
 html{color-scheme:light}
@@ -44,24 +45,25 @@ body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body)
 .wrap>*{width:100%;max-width:1320px;justify-self:center;min-width:0}
 .wrap>#spots{max-width:none}
 h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;font-weight:700;letter-spacing:.01em}
-h1{font-size:30px;line-height:1.1}
-h2{font-size:15px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+h1{font-size:40px;line-height:1;text-transform:uppercase;letter-spacing:.03em;color:var(--ink)}
+h1 small{display:block;font-family:var(--f-body);font-size:14px;font-weight:600;text-transform:none;letter-spacing:.02em;color:var(--accent);margin-top:6px}
+h2{font-size:15px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700}
 .mono,.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
-header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 24px}
+header.top{background:var(--band);border:1px solid var(--rule);border-radius:3px;padding:18px 20px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 24px}
 header.top p{margin:4px 0 0;color:var(--muted);max-width:68ch}
 .badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:12px;padding:4px 10px;border:1px solid var(--rule);border-radius:999px;background:var(--surface);color:var(--muted)}
 .badge.ex{border-color:var(--warn);color:var(--warn)}
 .badge.live{border-color:var(--good);color:var(--good)}
 
-.panel{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:14px 16px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:3px;padding:14px 16px;min-width:0}
 .source{display:grid;gap:12px}
 .row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
 .field{display:grid;gap:3px;min-width:0}
-.field label,.lbl{font-family:var(--f-display);font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.field label,.lbl{font-family:var(--f-display);font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}
 input[type=number],input[type=text],select,textarea{font:inherit;font-family:var(--f-mono);font-size:13px;color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:6px 8px;min-width:0}
 input[type=number]{width:96px}
 textarea{width:100%;min-height:64px;resize:vertical}
-button,.btn{font-family:var(--f-display);font-weight:600;font-size:14px;letter-spacing:.03em;border-radius:4px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);padding:7px 14px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+button,.btn{font-family:var(--f-display);font-weight:700;font-size:14.5px;letter-spacing:.04em;border-radius:3px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);padding:7px 14px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
 button.ghost,.btn.ghost{background:transparent;color:var(--accent)}
 button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .note{font-size:13px;color:var(--muted);margin:0;max-width:80ch}
@@ -176,7 +178,7 @@ dt[title],.stat .k[title],th[title],.tip{cursor:help;text-decoration:underline d
 <div class="wrap">
   <header class="top">
     <div>
-      <h1>Émagramme AROME</h1>
+      <h1>Parameteo<small>Émagramme AROME · sites FFVL · balises</small></h1>
       <p>Émagramme incliné à 45° (type 761) avec ascendance de particule, CAPE/CIN, base des cumulus et plafond thermique. La prévision est téléchargée directement depuis Open-Meteo. Survolez le diagramme pour lire chaque niveau.</p>
     </div>
     <div class="row" style="align-items:center"><button id="readBtn" type="button">Lecture commentée</button><button id="tutBtn" type="button" class="ghost">Apprendre à lire un émagramme</button><span id="srcBadge" class="badge ex">Exemple fictif</span></div>
@@ -370,7 +372,7 @@ dt[title],.stat .k[title],th[title],.tip{cursor:help;text-decoration:underline d
         <dt><span class="sw" style="border-color:var(--dry)"></span></dt><dd>Adiabatique sèche : air non saturé, −1 °C / 100 m.</dd>
         <dt><span class="sw" style="border-color:var(--moist);border-top-style:dashed"></span></dt><dd>Pseudo-adiabatique : air saturé, environ −0,4 à −0,7 °C / 100 m en basses couches.</dd>
         <dt><span class="sw" style="border-color:var(--mixr);border-top-style:dotted"></span></dt><dd>Rapport de mélange constant (chiffres en g/kg).</dd>
-        <dt><span class="sw" style="border-color:var(--accent);border-top-style:dashed;border-top-width:3px"></span></dt><dd>Adiabatique du thermique de relief, depuis la pente jusqu'au plafond.</dd>
+        <dt><span class="sw" style="border-color:var(--hi);border-top-style:dashed;border-top-width:3px"></span></dt><dd>Adiabatique du thermique de relief, depuis la pente jusqu'au plafond.</dd>
       </dl></div>
       <div><h3>Niveaux remarquables</h3><dl>
         <dt>NCA</dt><dd>Niveau de condensation par ascendance : la bulle devient saturée. Base des cumulus.</dd>
@@ -610,7 +612,7 @@ const on = l => { const F = focus(); return !F || F.includes(l); };
 const al = (l, a) => on(l) ? a : a * 0.12;
 const lw = (l, w) => { const F = focus(); return F && F.includes(l) ? w * 1.8 : w; };
 const show = (l, id) => $(id).checked || !!(focus() && focus().includes(l));
-function readColors() { const cs = getComputedStyle(document.documentElement); const k = ["paper", "surface", "ink", "muted", "rule", "accent", "iso", "dry", "moist", "mixr", "temp", "dew", "parcel", "ground", "cape", "cin", "good", "warn", "bad"];
+function readColors() { const cs = getComputedStyle(document.documentElement); const k = ["paper", "surface", "ink", "muted", "rule", "accent", "hi", "iso", "dry", "moist", "mixr", "temp", "dew", "parcel", "ground", "cape", "cin", "good", "warn", "bad"];
   C = {}; k.forEach(n => C[n] = cs.getPropertyValue("--" + n).trim()); }
 const SPAN = { 100: 80, 200: 70, 300: 62, 500: 48, 600: 42, 700: 36 }, SKEW = 35;
 
@@ -689,10 +691,10 @@ function draw() {
   ctx.lineWidth = 1; ctx.setLineDash([2, 3]); poly(pRange(an.p0, an.par.lcl.p, 6).map(p => [tdFromR(an.par.r, p), p]), g); ctx.setLineDash([]);
   ctx.globalAlpha = al("levels", 1);
   // plafond thermique sec (si différent de la particule)
-  const thLine = (o, wide) => { if (!o || o.ceil === null) return; const th = theta(o.T0, o.p0); ctx.strokeStyle = C.accent; ctx.lineWidth = wide ? 2.4 : 1.5; ctx.setLineDash(wide ? [6, 3] : [2, 3]);
+  const thLine = (o, wide) => { if (!o || o.ceil === null) return; const th = theta(o.T0, o.p0); ctx.strokeStyle = C.hi; ctx.lineWidth = wide ? 2.4 : 1.5; ctx.setLineDash(wide ? [6, 3] : [2, 3]);
     poly(pRange(o.p0, o.ceil, 10).map(p => [tFromTheta(th, p), p]), g); ctx.setLineDash([]); };
   if (S.ptype !== "sfc" || an.rel) thLine(an.sol, false);
-  if (an.rel) { thLine(an.rel, true); const Y = g.y(an.rel.p0), Te = envT(an.rel.p0); ctx.strokeStyle = C.accent; ctx.fillStyle = C.accent; ctx.lineWidth = 1.5;
+  if (an.rel) { thLine(an.rel, true); const Y = g.y(an.rel.p0), Te = envT(an.rel.p0); ctx.strokeStyle = C.hi; ctx.fillStyle = C.hi; ctx.lineWidth = 1.5;
     if (Te !== null) { ctx.beginPath(); ctx.moveTo(g.x(Te, an.rel.p0), Y); ctx.lineTo(g.x(an.rel.T0, an.rel.p0), Y); ctx.stroke(); }
     ctx.beginPath(); ctx.arc(g.x(an.rel.T0, an.rel.p0), Y, 4.5, 0, 7); ctx.fill(); }
   // marqueurs de niveaux
@@ -705,8 +707,8 @@ function draw() {
   mark(an.par.lcl.p, "NCA", C.ink);
   if (an.lfc) mark(an.lfc, "NCL", C.bad);
   if (an.el && an.cape > 1) mark(an.el, "NE", C.bad);
-  if (an.rel) { if (an.sol.topP) mark(an.sol.topP, an.sol.cu ? "Base cu (sol)" : "Plafond sol", C.accent); if (an.rel.topP) mark(an.rel.topP, an.rel.cu ? "Base cu (relief)" : "Plafond relief", C.accent); }
-  else if (an.thermalTopP) mark(an.thermalTopP, an.cumulus ? "Base cumulus" : "Plafond thermique", C.accent);
+  if (an.rel) { if (an.sol.topP) mark(an.sol.topP, an.sol.cu ? "Base cu (sol)" : "Plafond sol", C.hi); if (an.rel.topP) mark(an.rel.topP, an.rel.cu ? "Base cu (relief)" : "Plafond relief", C.hi); }
+  else if (an.thermalTopP) mark(an.thermalTopP, an.cumulus ? "Base cumulus" : "Plafond thermique", C.hi);
   ctx.globalAlpha = 1;
   // curseur
   if (S.cursorP && S.cursorP <= pB && S.cursorP >= pT) {
@@ -819,7 +821,7 @@ function highlightRow(p) { const rows = [...$("tbl").tBodies[0].rows]; let best 
   rows.forEach(r => { r.classList.remove("hl"); if (p) { const dd = Math.abs(Math.log(+r.dataset.p / p)); if (dd < d) { d = dd; best = r; } } });
   if (best && d < 0.05) best.classList.add("hl"); }
 
-function reliefNote() { const n = $("rNote"); if (!S.relief.on || !S.an || S.an.relief) { n.hidden = true; return; }
+function reliefNote() { const n = $("rNote"); if (!S.relief.on || !S.an || S.an.rel) { n.hidden = true; return; }
   n.hidden = false; n.textContent = `L'altitude ${Math.round(S.relief.z)} m est sous le sol du modèle (${Math.round(S.snd.zsfc)} m) : le plafond est calculé depuis le sol.`; }
 function recompute() { S.an = analyze(); reliefNote(); updateAnalysis(); updateReadout(); if (S.tut && S.tut.mode === "read") renderText(); draw();
   $("txV").textContent = `${f1(S.an.sfcT)} °C`; $("tdxV").textContent = `${f1(S.an.sfcTd)} °C`; }
