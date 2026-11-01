@@ -415,6 +415,7 @@ footer{padding:4px 2px 0}
     <div class="sec-h"><div><div class="kick">Situation générale</div><h2 id="situ-h" class="situ-t">Chargez un lieu pour voir la situation</h2></div><span class="sub" id="situWhen"></span></div>
     <div class="situ-grid">
       <div class="situ-main">
+        <p id="situMsg" class="msg" hidden></p>
         <p id="situTxt" class="situ-txt"></p>
         <div class="situ-chart"><canvas id="situCv" role="img" aria-label="Évolution sur 48 h : pression, température à 850 hPa, pluie, nuages et vent en altitude"></canvas></div>
         <div class="legend situ-leg">
@@ -512,6 +513,7 @@ footer{padding:4px 2px 0}
         <div>
           <div class="kick">Émagramme</div><div class="ttl" id="dTitle">Exemple — après-midi orageux</div>
           <div class="sub" id="dSub">Profil fictif pour démonstration</div>
+          <p id="sndMsg" class="msg" hidden style="margin:6px 0 0"></p>
         </div>
         <div class="hournav">
           <button class="ghost" id="prevH" type="button" aria-label="Heure précédente">◀</button>
@@ -1164,22 +1166,36 @@ function msg(t, kind) { if (kind === "err") spotMsg(t, "err"); else if (kind !==
   if (kind === "ok") { const b = document.createElement("button"); b.type = "button"; b.className = "ghost sm"; b.style.marginLeft = "10px";
     b.textContent = "Lire ce sondage avec moi"; b.addEventListener("click", startRead); m.appendChild(b); } }
 
-async function tryFetch() {
-  updateLink(); msg("Téléchargement en cours…");
-  const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 8000);
-  try { const r = await fetch(apiUrl(), { signal: ctrl.signal }); clearTimeout(to);
-    const d = await r.json(); loadOpenMeteo(d);
+// Message clair pour les erreurs d'Open-Meteo (quota gratuit : par minute, par heure, par jour)
+function omReason(t) {
+  if (/minutely/i.test(t)) return "quota d'Open-Meteo atteint pour cette minute (trop de requêtes d'un coup)";
+  if (/hourly/i.test(t)) return "quota horaire d'Open-Meteo atteint : réessayez dans l'heure";
+  if (/daily/i.test(t)) return "quota journalier d'Open-Meteo atteint : réessayez demain";
+  return t;
+}
+let fetchRetry = null;
+async function tryFetch(retry = 0) {
+  updateLink(); clearTimeout(fetchRetry); msg(retry ? "Nouvel essai de téléchargement…" : "Téléchargement de la prévision en cours…"); situMsg("Téléchargement de la prévision…");
+  const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 30000);
+  try { let r; try { r = await fetch(apiUrl(), { signal: ctrl.signal }); } catch (e) { throw new Error(e.name === "AbortError" ? "NET:délai dépassé (30 s)" : "NET:pas de réponse"); }
+    clearTimeout(to);
+    let d; try { d = await r.json(); } catch { throw new Error(`Open-Meteo : réponse illisible (HTTP ${r.status})`); }
+    if (d && d.error) { const why = String(d.reason || "erreur");
+      if ((r.status === 429 || /limit/i.test(why)) && /minutely/i.test(why) && retry < 2) { const m = `Open-Meteo : ${omReason(why)}. Nouvel essai automatique dans 1 minute.`; msg(m, "err"); situMsg(m, "err"); fetchRetry = setTimeout(() => tryFetch(retry + 1), 61000); return; }
+      throw new Error("Open-Meteo : " + omReason(why)); }
+    loadOpenMeteo(d); situMsg("");
     msg(`Prévision ${MODEL_NAMES[$("model").value] || ""} chargée le ${new Date().toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}.`, "ok");
     store.set({ lat: $("lat").value, lon: $("lon").value, model: $("model").value, place: S.place || "" }); }
-  catch (e) { clearTimeout(to);
-    if (e && e.message && e.message.startsWith("Open-Meteo")) { msg(e.message, "err"); return; }
-    msg("Open-Meteo ne répond pas (connexion Internet ?). L'exemple fictif reste affiché ; réessayez ou importez un fichier.", "err"); }
+  catch (e) { clearTimeout(to); const t = (e && e.message) || "";
+    const m = t.startsWith("Open-Meteo") ? t : `Open-Meteo ne répond pas (${t.replace(/^NET:/, "") || "connexion"}). L'exemple fictif reste affiché ; réessayez dans un instant.`;
+    msg(m, "err"); situMsg(m, "err"); console.warn("Sondage", t); }
 }
+function situMsg(t, kind) { ["situMsg", "sndMsg"].forEach(id => { const m = $(id); if (!m) return; m.hidden = !t; m.className = "msg " + (kind || ""); m.textContent = t || ""; }); }
 
 // ---------- Événements ----------
 $("preset").addEventListener("change", pickPreset);
 ["lat", "lon", "model"].forEach(id => $(id).addEventListener("input", updateLink));
-$("fetchBtn").addEventListener("click", tryFetch);
+$("fetchBtn").addEventListener("click", () => tryFetch());
 $("pasteBtn").addEventListener("click", () => ingest($("pasteArea").value));
 $("pasteArea").addEventListener("paste", () => setTimeout(() => ingest($("pasteArea").value), 0));
 $("fileIn").addEventListener("change", e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => ingest(r.result); r.readAsText(f); });
@@ -1587,7 +1603,8 @@ async function getJSON(url, ms = 25000, opts = {}) { const c = new AbortControll
   try { r = await fetch(url, { ...opts, signal: c.signal }); }
   catch (e) { clearTimeout(to); throw new Error(e.name === "AbortError" ? "délai dépassé" : "accès bloqué (réseau ou autorisation du serveur)"); }
   try {
-    if (!r.ok) throw new Error(r.status === 429 ? "serveur saturé (HTTP 429)" : r.status === 403 ? "accès refusé (HTTP 403)" : `HTTP ${r.status}`);
+    if (!r.ok) { let why = ""; try { const j = await r.json(); why = j && j.reason ? omReason(String(j.reason)) : ""; } catch { }
+      throw new Error(why || (r.status === 429 ? "serveur saturé (HTTP 429)" : r.status === 403 ? "accès refusé (HTTP 403)" : `HTTP ${r.status}`)); }
     let d; try { d = await r.json(); } catch { throw new Error("réponse illisible"); }
     if (d && d.error) throw new Error(d.reason || "erreur"); return d;
   } finally { clearTimeout(to); } }
