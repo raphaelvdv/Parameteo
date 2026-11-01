@@ -262,6 +262,19 @@ dialog#rules::backdrop{background:rgba(10,15,30,.45)}
 .situ-side{display:grid;gap:12px;align-content:start}
 .situ-links{display:grid;gap:4px;font-size:14px}
 .situ-links a{color:var(--accent)}
+.tr-days{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:12px 0 10px}
+.tr-day{appearance:none;font:inherit;color:var(--ink);text-align:left;background:var(--paper);border:1px solid var(--rule);border-top:4px solid var(--muted);border-radius:var(--radius-s);padding:8px 10px;display:grid;gap:3px;cursor:pointer;min-width:0}
+.tr-day.good{border-top-color:var(--good)}.tr-day.warn{border-top-color:var(--warn)}.tr-day.bad{border-top-color:var(--bad)}
+.tr-day[aria-pressed="true"]{outline:2px solid var(--accent);outline-offset:1px}
+.tr-day .d{font-family:var(--f-display);font-weight:600;font-size:15px;text-transform:capitalize}
+.tr-day .v{font-family:var(--f-display);font-weight:600;font-size:12.5px}
+.tr-day .v.good{color:var(--good)}.tr-day .v.warn{color:var(--warn)}.tr-day .v.bad{color:var(--bad)}
+.tr-day .n{font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-day .t{font-size:12.5px;color:var(--muted);line-height:1.3}
+.tr-day .ar{display:inline-block;color:var(--accent)}
+.tr-chart canvas{display:block;width:100%;height:380px;touch-action:pan-y}
+.tr-read{font-family:var(--f-mono);font-size:13px;color:var(--muted);min-height:2.6em;margin:6px 0 0}
+@media (max-width:620px){.tr-days{grid-template-columns:minmax(0,1fr);gap:5px}.tr-day{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;border-top-width:1px;border-left:4px solid var(--muted);padding:6px 10px}.tr-day.good{border-left-color:var(--good)}.tr-day.warn{border-left-color:var(--warn)}.tr-day.bad{border-left-color:var(--bad)}.tr-day.good,.tr-day.warn,.tr-day.bad{border-top-color:var(--rule)}.tr-day .d{min-width:56px}.tr-day .t{flex-basis:100%;font-size:12px}.tr-chart canvas{height:340px}}
 .pill.info{color:var(--accent)}
 /* ---- Passe de design : hiérarchie, densité, boutons ---- */
 :root{--radius:10px;--radius-s:7px;--shadow:0 1px 2px rgba(23,42,74,.06),0 4px 14px rgba(23,42,74,.06);--tint:rgba(52,99,184,.10);--tint-2:rgba(52,99,184,.18)}
@@ -417,6 +430,22 @@ footer{padding:4px 2px 0}
         <p class="note">Lecture automatique de la prévision AROME au lieu choisi : elle repère les passages de fronts par leurs signatures locales (pression, température à 850 hPa, vent, nuages, pluie), sans remplacer une carte analysée par un prévisionniste.</p>
       </aside>
     </div>
+  </section>
+  <section class="panel" id="trend" aria-labelledby="tr-h">
+    <div class="sec-h"><div><div class="kick">Tendance 5 jours</div><h2 id="tr-h" class="situ-t">Flux, pression, température et nuages</h2></div><span class="sub" id="trWhen"></span></div>
+    <div id="trDays" class="tr-days"></div>
+    <div class="tr-chart"><canvas id="trCv" role="img" aria-label="Météogramme sur 5 jours : vent en altitude, nuages, pression, température à 850 hPa et pluie"></canvas></div>
+    <p id="trRead" class="tr-read" aria-live="polite">Touchez ou survolez le graphique pour lire les valeurs heure par heure.</p>
+    <div class="legend situ-leg">
+      <span>↗ Flux à 850, 700 et 500 hPa (≈ 1 500, 3 000 et 5 500 m)</span><span>Force : <b style="color:var(--ink)">&lt; 30</b> · <b style="color:var(--warn)">30–49</b> · <b style="color:var(--bad)">≥ 50 km/h</b></span>
+      <span><i style="border-color:var(--accent);border-top-width:3px"></i>Pression mer (hPa)</span>
+      <span><i style="border-color:var(--temp);border-top-width:3px"></i>Température à 850 hPa (°C)</span>
+      <span><i style="border-color:var(--temp);border-top-width:2px;border-top-style:dashed"></i>Température à 2 m (°C)</span>
+      <span><i style="border-color:var(--muted);border-top-width:6px;opacity:.5"></i>Nuages hauts / moyens / bas</span>
+      <span><i style="border-color:var(--dew);border-top-width:6px"></i>Pluie (mm/h)</span>
+    </div>
+    <p class="note">Prévision Météo-France via Open-Meteo : AROME pour les premières heures, puis ARPEGE au-delà. La tendance par jour (heures de vol, 10 h – 18 h) est indicative : au-delà de 2 à 3 jours, la prévision devient nettement moins fiable. Elle ne remplace ni les bulletins officiels, ni les balises, ni la fiche du site.</p>
+    <p id="trMsg" class="msg" hidden></p>
   </section>
   <section class="panel" id="fronts" aria-labelledby="fr-h">
     <div class="sec-h"><div><div class="kick">Carte des fronts</div><h2 id="fr-h" class="situ-t">Pression, fronts et masses d'air</h2></div>
@@ -1665,7 +1694,8 @@ const RULES = Object.freeze({
     { id: "farm", name: "cultures, vergers ou vignes", f: 0.95, t: [["landuse", "farmland"], ["landuse", "orchard"], ["landuse", "vineyard"], ["landuse", "allotments"]] },
     { id: "urban", name: "zone bâtie", f: 1.05, t: [["landuse", "residential"], ["landuse", "industrial"], ["landuse", "commercial"], ["landuse", "retail"]] }],
   sector: { top: 10, dist: 2.5, speedBad: 15, speedBadPen: 15, speedWarn: 10, speedWarnPen: 8, dirSpread: 90, dirPen: 10,
-    rainNear: 0.5, rainPen: 10, lowRange: 50, lowPen: 5, maxPen: 30 }
+    rainNear: 0.5, rainPen: 10, lowRange: 50, lowPen: 5, maxPen: 30 },
+  trend: { hours: [10, 18], rainHours: [8, 20], flux: [30, 50], rain: [0.5, 3], low: 80, midHigh: 120 }
 });
 const cls100 = v => v >= RULES.cls.good ? "good" : v >= RULES.cls.warn ? "warn" : "bad";
 // Position du soleil (approximation NOAA, précision ~0,5°)
@@ -2326,6 +2356,11 @@ function rulesHtml() {
   ${tbl([["Plafond sol : adiabatique sèche depuis la température au sol", "toujours calculé"], ["Plafond relief : depuis la pente, air libre + chauffe (calculée selon l'ensoleillement pour chaque déco)", "si coché, et pour chaque déco"],
     ["Couvercle sous les crêtes : thermiques de vallée sous l'altitude de la pente − 100 m", "plafond relief retenu"], ["Couche brassée : thermiques de vallée au-dessus de la pente", "plafond sol retenu"],
     ["Plafond à moins de 100 m au-dessus du départ", "compté comme « pas de thermique »"]])}
+  <h3>Tendance 5 jours (onglet Situation générale)</h3>
+  <p>Repère indicatif par journée, calculé sur les heures de vol (${RULES.trend.hours[0]} h – ${RULES.trend.hours[1]} h). Il ne modifie pas les notes des sites.</p>
+  ${tbl([[`Pluie de ${fr(RULES.trend.rain[1])} mm ou plus (${RULES.trend.rainHours[0]} h – ${RULES.trend.rainHours[1]} h) ou flux à 700 hPa de ${RULES.trend.flux[1]} km/h ou plus`, "Défavorable"],
+    [`Pluie de ${fr(RULES.trend.rain[0])} mm ou plus, flux à 700 hPa de ${RULES.trend.flux[0]} km/h ou plus, nuages bas ≥ ${RULES.trend.low} % ou nuages moyens + hauts ≥ ${RULES.trend.midHigh} %`, "À surveiller"],
+    ["Sinon", "Favorable a priori"]])}
   <h3>Données et mises à jour</h3>
   ${tbl([["Prévision", "Météo-France AROME / ARPEGE via Open-Meteo"], ["Terrains FFVL (data.gouv.fr)", "gardés 24 h"], ["Terrain IGN RGE ALTI (data.geopf.fr)", "gardé dans le navigateur"], ["Liste des balises FFVL", "gardée 24 h"],
     ["Relevés des balises FFVL et Pioupiou", "relus à chaque recherche"], ["Sites OpenStreetMap / ParaglidingEarth (option)", "gardés 7 jours"], ["Décollages notés", "les 15, 25 ou 40 plus proches"]])}`;
@@ -2393,6 +2428,7 @@ function renderSituation() {
   $("situWhen").textContent = D.times[i] ? `Autour du ${new Date(D.times[i]).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} ${D.times[i].slice(11, 16)}` : "";
   $("situTxt").textContent = A.txt; kv($("situKv"), A.kv);
   drawSituation(A.X, i, D, A);
+  loadTrend();
 }
 function drawSituation(X, i0, D, A) {
   const cv = $("situCv"), w = cv.clientWidth || 600, h = cv.clientHeight || 240, dpr = window.devicePixelRatio || 1;
@@ -2439,6 +2475,154 @@ function drawSituation(X, i0, D, A) {
 }
 new ResizeObserver(() => { if (S.dataset) renderSituation(); }).observe($("situCv"));
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (S.dataset) renderSituation(); });
+
+// ---------- Tendance 5 jours (météogramme du lieu choisi) ----------
+const TR = { key: null, data: null, at: 0, hover: null, day: null, busy: null };
+const TR_LV = [850, 700, 500];
+function trUrl(lat, lon) {
+  const v = ["pressure_msl", "temperature_2m", "temperature_850hPa", "precipitation", "cloud_cover", "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high"];
+  for (const L of TR_LV) v.push(`wind_speed_${L}hPa`, `wind_direction_${L}hPa`);
+  return `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lon.toFixed(3)}&models=meteofrance_seamless&hourly=${v.join(",")}&wind_speed_unit=kn&timezone=auto&forecast_days=5`;
+}
+async function loadTrend() {
+  const D = S.dataset; if (!D || D.lat == null) return;
+  const key = `${(+D.lat).toFixed(2)},${(+D.lon).toFixed(2)}`;
+  if (TR.key === key && TR.data && Date.now() - TR.at < 36e5) { drawTrend(); return; }
+  if (TR.busy === key) return; TR.busy = key;
+  $("trMsg").hidden = true; if (TR.key !== key) { $("trDays").innerHTML = '<p class="note">Chargement de la tendance…</p>'; }
+  try {
+    const d = await getJSON(trUrl(+D.lat, +D.lon), 30000);
+    const H = d.hourly; if (!H || !H.time) throw new Error("réponse sans données horaires");
+    const gv = n => H[n] ?? H[Object.keys(H).find(k => k.startsWith(n + "_"))] ?? [];
+    TR.data = { d, gv, times: H.time, lat: d.latitude, lon: d.longitude }; TR.key = key; TR.at = Date.now(); TR.hover = null; TR.day = null;
+    renderTrend();
+  } catch (e) {
+    $("trDays").innerHTML = ""; const m = $("trMsg"); m.hidden = false; m.className = "msg err"; m.textContent = "Tendance 5 jours indisponible : " + e.message;
+  } finally { if (TR.busy === key) TR.busy = null; }
+}
+// Synthèse d'une journée (heures de vol)
+function trDays(T) {
+  const R = RULES.trend, g = n => T.gv(n), days = [], kmh = v => v == null ? null : v * 1.852;
+  const byDay = {}; T.times.forEach((t, k) => (byDay[t.slice(0, 10)] ||= []).push(k));
+  for (const [date, ks] of Object.entries(byDay)) {
+    const hr = k => +T.times[k].slice(11, 13), fly = ks.filter(k => hr(k) >= R.hours[0] && hr(k) <= R.hours[1]), wet = ks.filter(k => hr(k) >= R.rainHours[0] && hr(k) < R.rainHours[1]);
+    if (fly.length < 4) continue;
+    const mean = (a, kk) => { const v = kk.map(k => a[k]).filter(x => x != null); return v.length ? v.reduce((p, q) => p + q, 0) / v.length : null; };
+    const max = (a, kk) => { const v = kk.map(k => a[k]).filter(x => x != null); return v.length ? Math.max(...v) : null; };
+    const flux = {}; for (const L of TR_LV) { const s = g(`wind_speed_${L}hPa`), dd = g(`wind_direction_${L}hPa`); let u = 0, v = 0, m = 0;
+      fly.forEach(k => { if (s[k] == null || dd[k] == null) return; const a = dd[k] * Math.PI / 180; u += s[k] * Math.sin(a); v += s[k] * Math.cos(a); m++; });
+      flux[L] = m ? { dir: (Math.atan2(u, v) * 180 / Math.PI + 360) % 360, kmh: kmh(mean(s, fly)), max: kmh(max(s, fly)) } : null; }
+    const rain = wet.reduce((p, k) => p + (g("precipitation")[k] || 0), 0), lo = mean(g("cloud_cover_low"), fly), mid = mean(g("cloud_cover_mid"), fly), hi = mean(g("cloud_cover_high"), fly);
+    const w7 = flux[700] && flux[700].max, why = [];
+    let cls = "good";
+    if (rain >= R.rain[1]) { cls = "bad"; why.push(`pluie ${fr(rain)} mm`); } else if (rain >= R.rain[0]) { cls = "warn"; why.push(`averses ${fr(rain)} mm`); }
+    if (w7 != null && w7 >= R.flux[1]) { cls = "bad"; why.push("flux fort"); } else if (w7 != null && w7 >= R.flux[0]) { if (cls === "good") cls = "warn"; why.push("flux soutenu"); }
+    if (lo != null && lo >= R.low) { if (cls === "good") cls = "warn"; why.push("ciel bas"); }
+    if ((mid ?? 0) + (hi ?? 0) >= R.midHigh) { if (cls === "good") cls = "warn"; why.push("ciel voilé"); }
+    const noon = ks.find(k => hr(k) === 14) ?? fly[Math.floor(fly.length / 2)];
+    let type = ""; try { type = situAnalyse(T, noon).type; } catch { }
+    days.push({ date, ks, fly, noon, flux, rain, lo, mid, hi, cls, why, type, pMean: mean(g("pressure_msl"), fly), t850: mean(g("temperature_850hPa"), fly), tMax: max(g("temperature_2m"), ks) });
+  }
+  return days.slice(0, 5);
+}
+const TR_VERD = { good: "Favorable a priori", warn: "À surveiller", bad: "Défavorable" };
+function renderTrend() {
+  const T = TR.data; if (!T) return;
+  const days = TR.days = trDays(T);
+  $("trWhen").textContent = `${S.place || "Lieu choisi"} · ${T.times.length ? new Date(T.times[0]).toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : ""} → ${days.length ? new Date(days[days.length - 1].date).toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : ""}`;
+  $("trDays").innerHTML = days.map((y, j) => { const f = y.flux[700], dt = new Date(y.date + "T12:00");
+    return `<button type="button" class="tr-day ${y.cls}" data-j="${j}" aria-pressed="${TR.day === j}">
+      <span class="d">${dt.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" })}</span>
+      <span class="v ${y.cls}">${TR_VERD[y.cls]}</span>
+      <span class="n">${f ? `<span class="ar" style="transform:rotate(${Math.round(f.dir + 180)}deg)" aria-hidden="true">↑</span> ${abbr(f.dir)} ${Math.round(f.kmh)}` : "—"}<span class="sr"> km/h à 700 hPa</span></span>
+      <span class="n">${y.t850 != null ? fr(y.t850) + "°" : "—"} · ${fr(y.rain)} mm</span>
+      <span class="t">${esc(y.type)}${y.why.length ? " — " + esc(y.why.join(", ")) : ""}</span></button>`; }).join("");
+  $("trDays").querySelectorAll(".tr-day").forEach(b => b.addEventListener("click", () => { const j = +b.dataset.j; TR.day = TR.day === j ? null : j;
+    $("trDays").querySelectorAll(".tr-day").forEach(x => x.setAttribute("aria-pressed", String(TR.day === +x.dataset.j)));
+    if (TR.day != null) trReadDay(days[j]); else trRead(null); drawTrend(); }));
+  drawTrend();
+}
+function trReadDay(y) {
+  const f = L => y.flux[L] ? `${abbr(y.flux[L].dir)} ${Math.round(y.flux[L].kmh)}` : "—";
+  $("trRead").textContent = `${new Date(y.date + "T12:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} (${RULES.trend.hours[0]}–${RULES.trend.hours[1]} h) : ${y.type || "—"}. Flux 850 / 700 / 500 hPa : ${f(850)} / ${f(700)} / ${f(500)} km/h · `
+    + `pression ${y.pMean != null ? Math.round(y.pMean) : "—"} hPa · T850 ${y.t850 != null ? fr(y.t850) : "—"} °C · T max ${y.tMax != null ? Math.round(y.tMax) : "—"} °C · nuages B/M/H ${[y.lo, y.mid, y.hi].map(v => v != null ? Math.round(v) : "—").join(" / ")} % · pluie ${fr(y.rain)} mm.`;
+}
+function trRead(k) {
+  const T = TR.data; if (!T || k == null) { $("trRead").textContent = "Touchez ou survolez le graphique pour lire les valeurs heure par heure."; return; }
+  const g = n => T.gv(n)[k], t = T.times[k], w = L => { const s = g(`wind_speed_${L}hPa`), d = g(`wind_direction_${L}hPa`); return s != null && d != null ? `${abbr(d)} ${Math.round(s * 1.852)}` : "—"; };
+  const v = (x, f = Math.round) => x != null ? f(x) : "—";
+  $("trRead").textContent = `${new Date(t).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" })} ${t.slice(11, 13)} h — flux 850 / 700 / 500 hPa : ${w(850)} / ${w(700)} / ${w(500)} km/h · ${v(g("pressure_msl"))} hPa · T850 ${v(g("temperature_850hPa"), fr)} °C · T 2 m ${v(g("temperature_2m"))} °C · nuages B/M/H ${v(g("cloud_cover_low"))} / ${v(g("cloud_cover_mid"))} / ${v(g("cloud_cover_high"))} % · pluie ${v(g("precipitation"), fr)} mm`;
+}
+function drawTrend() {
+  const T = TR.data, cv = $("trCv"); if (!T || !cv.clientWidth) return;
+  const w = cv.clientWidth, h = cv.clientHeight || 380, dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  readColors(); c.clearRect(0, 0, w, h);
+  const n = T.times.length; if (n < 2) return;
+  const g = nm => T.gv(nm), mono = getComputedStyle(document.body).getPropertyValue("--f-mono"), disp = getComputedStyle(document.body).getPropertyValue("--f-display");
+  const narrow = w < 560, L = narrow ? 30 : 44, R = w - (narrow ? 28 : 40), x = k => L + (R - L) * k / (n - 1), cw = (R - L) / (n - 1);
+  const yDay = 12, fluxTop = 26, fluxH = 20, cloudTop = fluxTop + 3 * fluxH + 6, cloudH = 9, mainTop = cloudTop + 3 * (cloudH + 2) + 12, rainH = 44, rainBot = h - 20, rainTop = rainBot - rainH, mainBot = rainTop - 10;
+  // nuits et jour sélectionné
+  const off = (T.d.utc_offset_seconds || 0) * 1000;
+  c.fillStyle = C.rule; c.globalAlpha = .4;
+  for (let k = 0; k < n; k++) { const t = T.times[k], [yy, mo, dd] = t.slice(0, 10).split("-").map(Number), ms = Date.UTC(yy, mo - 1, dd, +t.slice(11, 13)) - off;
+    if (sunPos(T.lat, T.lon, ms).el < 0) c.fillRect(x(k) - cw / 2, fluxTop - 4, cw + .5, rainBot - fluxTop + 4); }
+  c.globalAlpha = 1;
+  if (TR.day != null && TR.days && TR.days[TR.day]) { const y = TR.days[TR.day]; c.fillStyle = C.accent; c.globalAlpha = .1; c.fillRect(x(y.fly[0]) - cw / 2, fluxTop - 4, x(y.fly[y.fly.length - 1]) - x(y.fly[0]) + cw, rainBot - fluxTop + 4); c.globalAlpha = 1; }
+  // séparateurs de jours et noms
+  c.font = `600 12px ${disp}`; c.textBaseline = "middle";
+  for (let k = 0; k < n; k++) { if (T.times[k].slice(11, 13) !== "00") continue;
+    if (k > 0) { c.strokeStyle = C.muted; c.globalAlpha = .45; c.lineWidth = 1; c.beginPath(); c.moveTo(x(k), fluxTop - 4); c.lineTo(x(k), rainBot); c.stroke(); c.globalAlpha = 1; }
+    const k2 = Math.min(n - 1, k + 12); c.fillStyle = C.ink; c.textAlign = "center";
+    c.fillText(new Date(T.times[k]).toLocaleDateString("fr-FR", narrow ? { weekday: "short" } : { weekday: "long", day: "numeric" }), x(k2), yDay); }
+  // flux en altitude
+  c.font = `10.5px ${mono}`; c.textAlign = "right"; c.fillStyle = C.muted;
+  const step = (R - L) / n < 3 ? 6 : 3;
+  TR_LV.slice().reverse().forEach((Lv, r) => { const cy = fluxTop + r * fluxH + fluxH / 2, s = g(`wind_speed_${Lv}hPa`), d = g(`wind_direction_${Lv}hPa`);
+    c.fillStyle = C.muted; c.textAlign = "right"; c.fillText(String(Lv), L - 5, cy);
+    for (let k = 0; k < n; k += step) { if (s[k] == null || d[k] == null) continue; const kmh = s[k] * 1.852, a = (d[k] + 180) * Math.PI / 180, len = 4 + Math.min(kmh, 80) / 80 * 5, cx = x(k);
+      c.strokeStyle = kmh >= RULES.trend.flux[1] ? C.bad : kmh >= RULES.trend.flux[0] ? C.warn : C.ink; c.lineWidth = kmh >= RULES.trend.flux[0] ? 2 : 1.4;
+      c.beginPath(); c.moveTo(cx - Math.sin(a) * len, cy + Math.cos(a) * len); c.lineTo(cx + Math.sin(a) * len, cy - Math.cos(a) * len); c.stroke();
+      c.beginPath(); c.arc(cx + Math.sin(a) * len, cy - Math.cos(a) * len, 1.8, 0, 7); c.fillStyle = c.strokeStyle; c.fill(); } });
+  // nuages
+  [["cloud_cover_high", "H"], ["cloud_cover_mid", "M"], ["cloud_cover_low", "B"]].forEach(([nm, lab], r) => { const y = cloudTop + r * (cloudH + 2), a = g(nm);
+    for (let k = 0; k < n; k++) { if (a[k] == null) continue; c.fillStyle = C.muted; c.globalAlpha = .06 + .64 * a[k] / 100; c.fillRect(x(k) - cw / 2, y, cw + .5, cloudH); }
+    c.globalAlpha = 1; c.fillStyle = C.muted; c.textAlign = "right"; c.fillText(lab, L - 5, y + cloudH / 2); });
+  // pression, T850, T2m
+  const P = g("pressure_msl"), T8 = g("temperature_850hPa"), T2 = g("temperature_2m");
+  const pv = P.filter(v => v != null), tv = [...T8, ...T2].filter(v => v != null);
+  c.strokeStyle = C.rule; c.lineWidth = 1; for (let q = 0; q <= 4; q++) { const y = mainTop + (mainBot - mainTop) * q / 4; c.beginPath(); c.moveTo(L, y); c.lineTo(R, y); c.stroke(); }
+  if (pv.length) {
+    const pMin = Math.floor(Math.min(...pv) - 1), pMax = Math.ceil(Math.max(...pv) + 1), yp = v => mainBot - (v - pMin) / (pMax - pMin || 1) * (mainBot - mainTop);
+    const line = (arr, y, col, dash, lw) => { c.strokeStyle = col; c.lineWidth = lw; c.setLineDash(dash); c.beginPath(); let st = false; arr.forEach((v, k) => { if (v == null) { st = false; return; } st ? c.lineTo(x(k), y(v)) : c.moveTo(x(k), y(v)); st = true; }); c.stroke(); c.setLineDash([]); };
+    if (tv.length) { const tMin = Math.floor(Math.min(...tv) - 1), tMax = Math.ceil(Math.max(...tv) + 1), yt = v => mainBot - (v - tMin) / (tMax - tMin || 1) * (mainBot - mainTop);
+      if (tMin < 0 && tMax > 0) { c.strokeStyle = C.iso; c.lineWidth = 1; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(L, yt(0)); c.lineTo(R, yt(0)); c.stroke(); c.setLineDash([]); }
+      line(T2, yt, C.temp, [5, 4], 1.6); line(T8, yt, C.temp, [], 2.4);
+      c.fillStyle = C.temp; c.textAlign = "left"; c.fillText(`${tMax}°`, R + 5, mainTop); c.fillText(`${tMin}°`, R + 5, mainBot); }
+    line(P, yp, C.accent, [], 2.4);
+    c.fillStyle = C.accent; c.textAlign = "right"; c.fillText(String(pMax), L - 5, mainTop); c.fillText(String(pMin), L - 5, mainBot - 6);
+  }
+  // pluie
+  const RN = g("precipitation"), rMax = Math.max(2, ...RN.map(v => v || 0));
+  c.strokeStyle = C.rule; c.beginPath(); c.moveTo(L, rainBot); c.lineTo(R, rainBot); c.stroke();
+  c.fillStyle = C.dew; c.globalAlpha = .65; for (let k = 0; k < n; k++) { const v = RN[k] || 0; if (v <= 0) continue; const bh = Math.max(1.5, v / rMax * rainH); c.fillRect(x(k) - Math.max(1, cw / 2 - .5), rainBot - bh, Math.max(2, cw - 1), bh); } c.globalAlpha = 1;
+  c.fillStyle = C.dew; c.textAlign = "right"; c.fillText(narrow ? `${fr(rMax)}` : `${fr(rMax)} mm`, L - 5, rainTop + 4);
+  // heures
+  c.fillStyle = C.muted; c.textAlign = "center"; c.textBaseline = "top";
+  for (let k = 0; k < n; k++) { const hh = +T.times[k].slice(11, 13); if (hh % (narrow ? 12 : 6) || hh === 0) continue; c.fillText(`${hh}h`, x(k), rainBot + 4); }
+  // heure du sondage choisi et survol
+  const D = S.dataset, ts = D && D.times && D.times[S.hourIdx || 0], ks = ts ? T.times.indexOf(ts) : -1;
+  if (ks >= 0) { c.strokeStyle = C.hi; c.lineWidth = 2; c.beginPath(); c.moveTo(x(ks), fluxTop - 4); c.lineTo(x(ks), rainBot); c.stroke(); }
+  if (TR.hover != null) { c.strokeStyle = C.ink; c.globalAlpha = .6; c.lineWidth = 1; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(x(TR.hover), fluxTop - 4); c.lineTo(x(TR.hover), rainBot); c.stroke(); c.setLineDash([]); c.globalAlpha = 1; }
+  TR.geom = { L, R, n };
+}
+function trPick(e) { const G = TR.geom; if (!G) return null; const r = $("trCv").getBoundingClientRect(), px = e.clientX - r.left; if (px < G.L - 6 || px > G.R + 6) return null;
+  return Math.max(0, Math.min(G.n - 1, Math.round((px - G.L) / (G.R - G.L) * (G.n - 1)))); }
+$("trCv").addEventListener("pointermove", e => { const k = trPick(e); if (k === TR.hover) return; TR.hover = k; trRead(k); drawTrend(); });
+$("trCv").addEventListener("pointerdown", e => { const k = trPick(e); TR.hover = k; trRead(k); drawTrend(); });
+$("trCv").addEventListener("pointerleave", e => { if (e.pointerType !== "mouse") return; TR.hover = null; if (TR.day != null && TR.days) trReadDay(TR.days[TR.day]); else trRead(null); drawTrend(); });
+new ResizeObserver(() => drawTrend()).observe($("trCv"));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => drawTrend());
 
 // ---------- Onglets ----------
 const TABS = ["situation", "voler"];
