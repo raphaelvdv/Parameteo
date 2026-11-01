@@ -4,8 +4,8 @@
   "description": "Émagramme AROME, plafonds thermiques et sites de vol FFVL notés",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#f2f5f7",
-  "theme_color": "#13233a",
+  "background_color": "#fff6ee",
+  "theme_color": "#ffcfa6",
   "lang": "fr",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },

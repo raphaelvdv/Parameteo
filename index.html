@@ -7,39 +7,39 @@
 <link rel="icon" href="logo.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#13233a">
+<meta name="theme-color" content="#ffcfa6">
 <meta name="apple-mobile-web-app-title" content="Parameteo">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
 <style>
 /* Layout : bandeau source de données, puis diagramme (2/3) + panneau d'analyse (1/3), tableau des niveaux en dessous */
-/* Carte VFR : fond bleu-gris de carte aéronautique, encre marine, bleu de carte en accent, magenta des espaces aériens pour les repères (plafonds), bistre du relief */
+/* Aube : couleurs du logo. Ciel abricot en en-tête, bleu du relief pour les commandes, fuchsia de la voile pour les plafonds, orangé pour les isothermes ; version sombre « crépuscule » */
 :root{
-  --paper:#f2f5f7; --surface:#ffffff; --band:#e3ecf3; --ink:#13233a; --muted:#566679; --rule:#c9d5df;
-  --accent:#1f5fae; --accent-ink:#ffffff; --hi:#b4307a;
-  --iso:#a9773f; --dry:#6a9a63; --moist:#4b8fc0; --mixr:#8b5fb0;
-  --temp:#d03228; --dew:#1f5fae; --parcel:#13233a; --ground:#dcd3c3;
-  --cape:rgba(208,50,40,.15); --cin:rgba(31,95,174,.14);
-  --good:#2e7d4f; --warn:#c27a12; --bad:#c2342b;
+  --paper:#fff6ee; --surface:#ffffff; --band-top:#ffcfa6; --band:#fff0e3; --ink:#172a4a; --muted:#5f6b80; --rule:#f0dac8;
+  --accent:#3463b8; --accent-ink:#ffffff; --hi:#e0237c;
+  --iso:#d0843a; --dry:#6a9a63; --moist:#5b8fd6; --mixr:#a466c8;
+  --temp:#e0372c; --dew:#3463b8; --parcel:#172a4a; --ground:#f0dcc8;
+  --cape:rgba(224,55,44,.15); --cin:rgba(52,99,184,.14);
+  --good:#2e8a57; --warn:#d9730f; --bad:#d0342c;
   --f-display:"Archivo Narrow","Arial Narrow",Arial,sans-serif;
   --f-body:"Archivo","Segoe UI",Roboto,Arial,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --paper:#0f1824; --surface:#132033; --band:#16243a; --ink:#e2eaf3; --muted:#93a5ba; --rule:#26384f;
-  --accent:#6aa7ef; --accent-ink:#0c1522; --hi:#e86aae;
-  --iso:#b48553; --dry:#6fae6a; --moist:#5b9bd0; --mixr:#a985cf;
-  --temp:#ff6a5c; --dew:#6aa7ef; --parcel:#e2eaf3; --ground:#2b2c2a;
-  --cape:rgba(255,106,92,.18); --cin:rgba(106,167,239,.16);
-  --good:#5cc487; --warn:#e8a645; --bad:#ff7468; color-scheme:dark}}
+  --paper:#131b2c; --surface:#19233a; --band-top:#3d2c44; --band:#1d2540; --ink:#f3ebe4; --muted:#aaa6b6; --rule:#2f3953;
+  --accent:#8eb3ec; --accent-ink:#10182a; --hi:#ff5fa8;
+  --iso:#e09a55; --dry:#6fae6a; --moist:#6f9fe0; --mixr:#b98ad6;
+  --temp:#ff6b5e; --dew:#8eb3ec; --parcel:#f3ebe4; --ground:#2c2a32;
+  --cape:rgba(255,107,94,.18); --cin:rgba(142,179,236,.16);
+  --good:#5cc487; --warn:#ffa95e; --bad:#ff7468; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --paper:#0f1824; --surface:#132033; --band:#16243a; --ink:#e2eaf3; --muted:#93a5ba; --rule:#26384f;
-  --accent:#6aa7ef; --accent-ink:#0c1522; --hi:#e86aae;
-  --iso:#b48553; --dry:#6fae6a; --moist:#5b9bd0; --mixr:#a985cf;
-  --temp:#ff6a5c; --dew:#6aa7ef; --parcel:#e2eaf3; --ground:#2b2c2a;
-  --cape:rgba(255,106,92,.18); --cin:rgba(106,167,239,.16);
-  --good:#5cc487; --warn:#e8a645; --bad:#ff7468; color-scheme:dark}
+  --paper:#131b2c; --surface:#19233a; --band-top:#3d2c44; --band:#1d2540; --ink:#f3ebe4; --muted:#aaa6b6; --rule:#2f3953;
+  --accent:#8eb3ec; --accent-ink:#10182a; --hi:#ff5fa8;
+  --iso:#e09a55; --dry:#6fae6a; --moist:#6f9fe0; --mixr:#b98ad6;
+  --temp:#ff6b5e; --dew:#8eb3ec; --parcel:#f3ebe4; --ground:#2c2a32;
+  --cape:rgba(255,107,94,.18); --cin:rgba(142,179,236,.16);
+  --good:#5cc487; --warn:#ffa95e; --bad:#ff7468; color-scheme:dark}
 
 *{box-sizing:border-box}
 html{color-scheme:light}
@@ -55,9 +55,9 @@ h1 small{display:block;font-family:var(--f-body);font-size:14px;font-weight:600;
 h2{font-size:15px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700}
 .mono,.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 .brand{display:flex;gap:16px;align-items:center;min-width:0}
-.brand .logo{width:76px;height:76px;flex:none;border-radius:16px;box-shadow:0 1px 3px rgba(19,35,58,.25)}
+.brand .logo{width:76px;height:76px;flex:none;border-radius:16px;box-shadow:0 2px 6px rgba(160,80,30,.25)}
 @media (max-width:520px){.brand .logo{width:56px;height:56px;border-radius:12px}}
-header.top{background:var(--band);border:1px solid var(--rule);border-radius:3px;padding:18px 20px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 24px}
+header.top{background:linear-gradient(180deg,var(--band-top) 0%,var(--band) 100%);border:1px solid var(--rule);border-radius:3px;padding:18px 20px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 24px}
 header.top p{margin:4px 0 0;color:var(--muted);max-width:68ch}
 .badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:12px;padding:4px 10px;border:1px solid var(--rule);border-radius:999px;background:var(--surface);color:var(--muted)}
 .badge.ex{border-color:var(--warn);color:var(--warn)}
@@ -186,47 +186,7 @@ dt[title],.stat .k[title],th[title],.tip{cursor:help;text-decoration:underline d
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" class="logo" aria-hidden="true" focusable="false">
-    <defs>
-    <linearGradient id="lg-sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1d4677"/>
-      <stop offset="1" stop-color="#13233a"/>
-    </linearGradient>
-    <clipPath id="lg-badge"><rect width="256" height="256" rx="48"/></clipPath>
-    <clipPath id="lg-front"><path d="M-10 236 L58 172 L92 198 L142 138 L204 206 L266 186 V266 H-10 Z"/></clipPath>
-  </defs>
-  <g clip-path="url(#lg-badge)">
-    <rect width="256" height="256" fill="url(#lg-sky)"/>
-    <!-- isothermes inclinées à 45° (émagramme 761) -->
-    <g stroke="#6aa7ef" stroke-width="2" opacity=".28">
-      <path d="M60 266 L266 60"/><path d="M110 266 L266 110"/><path d="M10 266 L266 10"/><path d="M-40 266 L226 0"/>
-    </g>
-    <!-- cumulus -->
-    <g fill="#ffffff">
-      <circle cx="52" cy="78" r="15"/><circle cx="72" cy="66" r="20"/><circle cx="94" cy="78" r="14"/>
-      <rect x="40" y="78" width="66" height="14" rx="7"/>
-    </g>
-    <!-- relief arrière -->
-    <path d="M-10 214 L66 126 L100 160 L148 100 L214 178 L266 150 V266 H-10 Z" fill="#2d5486"/>
-    <!-- relief avant avec courbes de niveau -->
-    <path d="M-10 236 L58 172 L92 198 L142 138 L204 206 L266 186 V266 H-10 Z" fill="#e3ecf3"/>
-    <g clip-path="url(#lg-front)" fill="none" stroke="#a9773f" stroke-width="3" stroke-linejoin="round" opacity=".9">
-      <path d="M-10 254 L58 192 L92 216 L142 160 L204 226 L266 206"/>
-      <path d="M-10 272 L58 212 L92 234 L142 182 L204 246 L266 226"/>
-    </g>
-    <!-- ascendance thermique depuis la pente -->
-    <path d="M118 166 C 98 138, 150 128, 128 104 S 150 84, 156 70" fill="none" stroke="#e86aae" stroke-width="5" stroke-linecap="round" stroke-dasharray="8 8"/>
-    <!-- parapente : suspentes, voile, pilote -->
-    <g stroke="#e3ecf3" stroke-width="1.6" opacity=".85">
-      <path d="M118 52 L170 98"/><path d="M140 40 L170 98"/><path d="M170 36 L170 98"/><path d="M200 40 L170 98"/><path d="M222 52 L170 98"/>
-    </g>
-    <path d="M112 54 Q170 4 228 54 L221 62 Q170 22 119 62 Z" fill="#e86aae"/>
-    <g stroke="#13233a" stroke-width="1.6" opacity=".45">
-      <path d="M140 33 L143 42"/><path d="M170 26 L170 35"/><path d="M200 33 L197 42"/>
-    </g>
-    <circle cx="170" cy="102" r="6" fill="#ffffff"/>
-  </g>
-</svg>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" class="logo" aria-hidden="true" focusable="false"><defs><linearGradient id="lg-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb98a"/><stop offset="1" stop-color="#ffefe0"/></linearGradient><clipPath id="lg-badge"><rect width="256" height="256" rx="48"/></clipPath><clipPath id="lg-front"><path d="M-10 236 L58 172 L92 198 L142 138 L204 206 L266 186 V266 H-10 Z"/></clipPath></defs><g clip-path="url(#lg-badge)"><rect width="256" height="256" fill="url(#lg-sky)"/><g stroke="#d9730f" stroke-width="2" opacity="0.16"><path d="M60 266 L266 60"/><path d="M110 266 L266 110"/><path d="M10 266 L266 10"/><path d="M-40 266 L226 0"/></g><g fill="#f6a878" stroke="#f6a878" stroke-width="7"><circle cx="52" cy="78" r="15"/><circle cx="72" cy="66" r="20"/><circle cx="94" cy="78" r="14"/><rect x="40" y="78" width="66" height="14" rx="7"/></g><g fill="#ffffff"><circle cx="52" cy="78" r="15"/><circle cx="72" cy="66" r="20"/><circle cx="94" cy="78" r="14"/><rect x="40" y="78" width="66" height="14" rx="7"/></g><path d="M-10 214 L66 126 L100 160 L148 100 L214 178 L266 150 V266 H-10 Z" fill="#8eb3ec"/><path d="M-10 236 L58 172 L92 198 L142 138 L204 206 L266 186 V266 H-10 Z" fill="#3463b8"/><g clip-path="url(#lg-front)" fill="none" stroke="#fff2e6" stroke-width="3.4" stroke-linejoin="round" opacity=".9"><path d="M-10 254 L58 192 L92 216 L142 160 L204 226 L266 206"/><path d="M-10 272 L58 212 L92 234 L142 182 L204 246 L266 226"/></g><path d="M118 166 C 98 138, 150 128, 128 104 S 150 84, 156 70" fill="none" stroke="#ea2a84" stroke-width="5.4" stroke-linecap="round" stroke-dasharray="8 8"/><g stroke="#3463b8" stroke-width="1.8" opacity="0.8"><path d="M118 52 L170 98"/><path d="M140 40 L170 98"/><path d="M170 36 L170 98"/><path d="M200 40 L170 98"/><path d="M222 52 L170 98"/></g><path d="M112 54 Q170 4 228 54 L221 62 Q170 22 119 62 Z" fill="#f02e8a"/><g stroke="#ffffff" stroke-width="1.6" opacity="0.6"><path d="M140 33 L143 42"/><path d="M170 26 L170 35"/><path d="M200 33 L197 42"/></g><circle cx="170" cy="102" r="6" fill="#13233a"/></g></svg>
       <div>
       <h1>Parameteo<small>Émagramme AROME · sites FFVL · balises</small></h1>
       <p>Émagramme incliné à 45° (type 761) avec ascendance de particule, CAPE/CIN, base des cumulus et plafond thermique. La prévision est téléchargée directement depuis Open-Meteo. Survolez le diagramme pour lire chaque niveau.</p>
