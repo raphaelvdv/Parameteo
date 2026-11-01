@@ -352,7 +352,7 @@ footer{padding:4px 2px 0}
     <div class="toolbar">
       <div class="field"><label for="radius">Rayon</label><select id="radius"><option value="10">10 km</option><option value="25" selected>25 km</option><option value="40">40 km</option><option value="60">60 km</option></select></div>
       <div class="field"><label for="spotHour">Jour et heure</label><div style="display:flex;gap:6px"><select id="spotHour"><option value="">—</option></select><button id="nowBtn" type="button" class="soft" title="Choisir l'heure actuelle pour comparer avec les balises">Maintenant</button></div></div>
-      <div class="field"><label for="spotDT" title="Surchauffe d'une pente en plein soleil perpendiculaire. Elle est réduite pour chaque déco selon son orientation, l'heure et les nuages.">Chauffe max. (°C)</label><input id="spotDT" type="number" step="0.5" min="0" max="8" value="4"></div>
+      <div class="field"><label for="spotDT" title="Surchauffe de référence : pente sèche face au soleil d'été, ciel clair, vent faible. Elle est ajustée automatiquement pour chaque déco selon l'orientation, la saison et l'heure, les nuages, le vent, la pluie récente et la neige.">Chauffe réf. (°C)</label><input id="spotDT" type="number" step="0.5" min="0" max="8" value="4"></div>
       <div class="field"><label for="spotN" title="Moins de sites notés = prévision plus rapide">Sites notés</label><select id="spotN"><option value="15">15</option><option value="25" selected>25</option><option value="40">40</option></select></div>
       <button id="spotsBtn" type="button">Noter les sites</button>
     </div>
@@ -1505,7 +1505,7 @@ function mergeSites(list) {
   }
   return kept;
 }
-const FVARS = () => { const v = ["temperature_2m", "dew_point_2m", "surface_pressure", "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m", "precipitation", "cloud_cover_low", "cloud_cover"];
+const FVARS = () => { const v = ["temperature_2m", "dew_point_2m", "surface_pressure", "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m", "precipitation", "cloud_cover_low", "cloud_cover", "snow_depth"];
   for (const L of LEVELS) for (const n of ["temperature", "relative_humidity", "geopotential_height", "wind_speed", "wind_direction"]) v.push(`${n}_${L}hPa`); return v.join(","); };
 function spotUrl(list, elev) {
   return `https://api.open-meteo.com/v1/forecast?latitude=${list.map(s => s.lat.toFixed(4)).join(",")}&longitude=${list.map(s => s.lon.toFixed(4)).join(",")}`
@@ -1518,7 +1518,8 @@ function analyzeSpot(site, D, i) {
   const save = { snd: S.snd, tx: S.tx, tdx: S.tdx, ptype: S.ptype, relief: S.relief };
   try {
     const snd = prepare(sndFromHour(i, D)); S.snd = snd; S.tx = null; S.tdx = null; S.ptype = "sfc";
-    const z = site.alt ?? snd.zsfc, sun = slopeSun(site, D, i); S.relief = { on: true, z, dT: sun ? sun.dT : (+$("spotDT").value || 3) };
+    const z = site.alt ?? snd.zsfc, w0 = windAtZ(z) || (snd.wind.length && z < snd.wind[0].z ? snd.wind[0] : null);
+    const sun = slopeSun(site, D, i, w0 ? Math.hypot(w0.u, w0.v) * 1.852 : null); S.relief = { on: true, z, dT: sun ? sun.dT : (+$("spotDT").value || 3) };
     const a = analyze();
     let w = windAtZ(z); if (!w && snd.wind.length) w = z < snd.wind[0].z ? snd.wind[0] : null;
     const wind = w ? { spd: Math.hypot(w.u, w.v), dir: ((Math.atan2(-w.u, -w.v) * 180 / Math.PI) + 360) % 360 } : null;
@@ -1550,7 +1551,8 @@ const RULES = Object.freeze({
     wind: [[30, 25], [20, 12]], rain: [[1, 50], [0.2, 25]], storm: 30, over: 12, noThermMax: 10 },
   cls: { good: 70, warn: 40 }, rankCut: 40,
   cmp: { window: 2, dist: 10, dz: 600, near: 5, nearDz: 400, fresh: 60, dSpeed: 8, dDir: 45, gustWarn: 30, gustBad: 40, strong: 25 },
-  sun: { slope: 30, cloudCut: 0.75, wideOri: 5, good: 0.6, weak: 0.3, grid: 25, minSlope: 5, pointOriSlope: 10, axis: [150, 300] },
+  sun: { slope: 30, cloudCut: 0.75, wideOri: 5, good: 0.6, weak: 0.3, grid: 25, minSlope: 5, pointOriSlope: 10, axis: [150, 300],
+    tau: 0.7, airExp: 0.678, windFrom: 10, windTo: 40, windCut: 0.5, wet: [[5, 0.7], [1, 0.85]], snow: [[0.05, 0.25], [0.01, 0.6]] },
   sector: { top: 10, dist: 2.5, speedBad: 15, speedBadPen: 15, speedWarn: 10, speedWarnPen: 8, dirSpread: 90, dirPen: 10,
     rainNear: 0.5, rainPen: 10, lowRange: 50, lowPen: 5, maxPen: 30 }
 });
@@ -1614,7 +1616,7 @@ async function loadTerrain(list) {
   list.forEach(p => { p.terrain = SP.terr[key(p)] || null; });
 }
 // Ensoleillement de la pente du déco et chauffe correspondante
-function slopeSun(site, D, i) {
+function slopeSun(site, D, i, wk) {
   const U = RULES.sun, t = D.times[i]; if (!t) return null;
   const [y, mo, d] = t.slice(0, 10).split("-").map(Number), h = +t.slice(11, 13), mi = +t.slice(14, 16) || 0;
   const ms = Date.UTC(y, mo - 1, d, h, mi) - (D.d.utc_offset_seconds || 0) * 1000;
@@ -1627,8 +1629,19 @@ function slopeSun(site, D, i) {
   const e = sp.el * rad;
   const inc = sp.el <= 0 ? 0 : Math.max(0, Math.min(1, Math.sin(e) * Math.cos(beta) + Math.cos(e) * Math.sin(beta) * Math.cos((sp.az - (aspect ?? 0)) * rad)));
   const cc = D.gv("cloud_cover"), cloud = cc && cc[i] != null ? cc[i] : (D.gv("cloud_cover_low") || [])[i] ?? 0;
-  const max = +$("spotDT").value; const dT = Math.round((isFinite(max) ? max : 4) * inc * (1 - U.cloudCut * cloud / 100) * 10) / 10;
-  return { el: sp.el, az: sp.az, aspect, inc, cloud, dT, src, slope: beta / rad };
+  const ref = +$("spotDT").value, f = {};
+  // saison et heure : intensité du rayonnement direct selon l'épaisseur d'atmosphère traversée (Meinel), relative au soleil au zénith
+  f.sun = sp.el <= 0 ? 0 : Math.pow(U.tau, Math.pow(1 / Math.max(Math.sin(e), 0.05), U.airExp)) / U.tau;
+  f.cloud = 1 - U.cloudCut * cloud / 100;
+  // vent au déco : brasse l'air chauffé contre la pente
+  f.wind = wk == null ? 1 : 1 - U.windCut * Math.max(0, Math.min(1, (wk - U.windFrom) / (U.windTo - U.windFrom)));
+  // sol mouillé : pluie des 24 h précédentes
+  const pr = D.gv("precipitation") || []; let rain24 = 0; for (let k = Math.max(0, i - 24); k < i; k++) rain24 += pr[k] || 0;
+  f.wet = (U.wet.find(([mm]) => rain24 >= mm) || [0, 1])[1];
+  // neige au sol (si le modèle la fournit)
+  const sd = (D.gv("snow_depth") || [])[i]; f.snow = sd == null ? 1 : (U.snow.find(([m]) => sd >= m) || [0, 1])[1];
+  const dT = Math.round((isFinite(ref) ? ref : 4) * inc * f.sun * f.cloud * f.wind * f.wet * f.snow * 10) / 10;
+  return { el: sp.el, az: sp.az, aspect, inc, cloud, dT, src, slope: beta / rad, f, rain24, snowDepth: sd, ref: isFinite(ref) ? ref : 4 };
 }
 // Vent interpolé à une altitude, pour un point de prévision (10 m + niveaux de pression)
 function windAtAltD(D, i, z) {
@@ -1663,6 +1676,12 @@ function sectorEval(site, r, D, i) {
   if (!it.length) it.push({ t: `Secteur homogène (${nb.length} points voisins à ${fr(Q.dist)} km)`, cls: "good" });
   return { pD: Math.min(pD, Q.maxPen), pT: Math.min(pT, Q.maxPen), it };
 }
+function heatWhy(u) { const f = u.f; if (!f) return ""; const L = [];
+  if (f.sun < 0.95) L.push(`soleil bas ${Math.round(f.sun * 100)} %`);
+  if (f.wind < 0.98) L.push(`vent ${Math.round(f.wind * 100)} %`);
+  if (f.wet < 1) L.push(`sol mouillé ${Math.round(f.wet * 100)} % (${fr(u.rain24)} mm en 24 h)`);
+  if (f.snow < 1) L.push(`neige ${Math.round(f.snow * 100)} %`);
+  return L.length ? ` (réf. ${fr(u.ref)} °C ; ${L.join(", ")})` : ` (réf. ${fr(u.ref)} °C)`; }
 function scoreSpot(site, r, sec) {
   const R = RULES.deco;
   // ---- Note décollage : prévision uniquement
@@ -1708,7 +1727,7 @@ function scoreSpot(site, r, sec) {
   if (storm) { T -= Q.storm; wt.push({ t: "Risque d'orage", cls: "bad" }); } else if (over) { T -= Q.over; wt.push({ t: "Surdéveloppement possible", cls: "warn" }); }
   if (r.sun) { const u = r.sun, U = RULES.sun;
     wt.unshift(u.el <= 0 ? { t: "Soleil couché : pas de chauffe des pentes", cls: "bad" }
-      : { t: `Ensoleillement de la pente ${Math.round(u.inc * 100)} % (soleil à ${Math.round(u.el)}° au ${abbr(u.az)}${u.aspect === null ? ", terrain plat ou sommet" : `, pente ${Math.round(u.slope)}° ${u.src === "ign" ? "mesurée" : "supposée"} face ${abbr(u.aspect)}`}, ${Math.round(u.cloud)} % de nuages) : chauffe +${fr(u.dT)} °C`,
+      : { t: `Ensoleillement de la pente ${Math.round(u.inc * 100)} % (soleil à ${Math.round(u.el)}° au ${abbr(u.az)}${u.aspect === null ? ", terrain plat ou sommet" : `, pente ${Math.round(u.slope)}° ${u.src === "ign" ? "mesurée" : "supposée"} face ${abbr(u.aspect)}`}, ${Math.round(u.cloud)} % de nuages) : chauffe +${fr(u.dT)} °C${heatWhy(u)}`,
           cls: u.inc >= U.good ? "good" : u.inc >= U.weak ? "warn" : "bad" }); }
   if (sec) T -= sec.pT;
   if (h <= 0) T = Math.min(T, Q.noThermMax);
@@ -2152,7 +2171,11 @@ function rulesHtml() {
     ["Sans données IGN (hors France, service indisponible)", `orientations du déco, pente supposée de ${RULES.sun.slope}°`],
     [`Point cliqué sur la carte, pente ≥ ${RULES.sun.pointOriSlope}°`, "orientation du « déco » = sens de descente de la pente"], ["Flèche bleue sur la carte", "sens de descente du terrain"], [`Déco ouvert à ${RULES.sun.wideOri} orientations ou plus, ou sans orientation`, "traité comme un sommet (surface horizontale)"],
     ["Ensoleillement", "angle d'incidence du soleil sur la pente, de 0 à 100 %"], [`Effet des nuages (nébulosité totale)`, `jusqu'à −${Math.round(RULES.sun.cloudCut * 100)} %`],
-    ["Chauffe du déco", "chauffe max. × ensoleillement × effet des nuages"], [`Ensoleillement ≥ ${Math.round(RULES.sun.good * 100)} % / ≥ ${Math.round(RULES.sun.weak * 100)} %`, "vert / orange (sinon rouge)"]])}
+    ["Chauffe du déco", "chauffe de référence × ensoleillement × saison × nuages × vent × sol mouillé × neige"],
+    ["Saison et heure", `intensité du rayonnement selon la hauteur du soleil (épaisseur d'atmosphère traversée) : ~100 % soleil haut d'été, ~65–70 % à midi en hiver`],
+    [`Vent au déco de ${RULES.sun.windFrom} à ${RULES.sun.windTo} km/h et plus`, `chauffe réduite progressivement, jusqu'à −${Math.round(RULES.sun.windCut * 100)} %`],
+    ...RULES.sun.wet.map(([mm, k]) => [`Pluie des 24 h précédentes ≥ ${fr(mm)} mm (sol mouillé)`, `× ${fr(k)}`]),
+    ...RULES.sun.snow.map(([m, k]) => [`Neige au sol ≥ ${Math.round(m * 100)} cm (si fournie par le modèle)`, `× ${fr(k)}`]), [`Ensoleillement ≥ ${Math.round(RULES.sun.good * 100)} % / ≥ ${Math.round(RULES.sun.weak * 100)} %`, "vert / orange (sinon rouge)"]])}
   <h3>Cohérence du secteur</h3>
   <p>Pour les ${RULES.sector.top} meilleurs décos, la prévision est aussi lue en 4 points voisins à ${fr(RULES.sector.dist)} km (nord, sud, est, ouest). Plus le secteur est hétérogène, plus la note est prudente.</p>
   ${tbl([[`Écart de vent à l'altitude du déco ≥ ${RULES.sector.speedBad} km/h`, `déco −${RULES.sector.speedBadPen}`], [`Écart de vent ≥ ${RULES.sector.speedWarn} km/h`, `déco −${RULES.sector.speedWarnPen}`],
