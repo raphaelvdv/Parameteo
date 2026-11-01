@@ -177,6 +177,8 @@ dt[title],.stat .k[title],th[title],.tip{cursor:help;text-decoration:underline d
 .bal svg{width:16px;height:16px;display:block}
 .bal.good{color:var(--good)}.bal.warn{color:var(--warn)}.bal.bad{color:var(--bad)}.bal.mute{color:var(--muted)}
 .why .info{color:var(--muted)}
+.zlow .bal .t{display:none}
+.zlow .bal{padding:1px}
 dialog#rules{width:min(820px,calc(100% - 32px));max-height:86vh;padding:0;border:1px solid var(--rule);border-radius:3px;background:var(--surface);color:var(--ink)}
 dialog#rules::backdrop{background:rgba(10,15,30,.45)}
 .rules-h{position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;background:var(--surface);border-bottom:1px solid var(--rule);z-index:1}
@@ -1680,6 +1682,30 @@ function nearestLanding(t) { let best = null, d = 1e9;
 // Bulles lisibles sans déplacer la carte : hauteur et largeur bornées à la carte, contenu qui défile, recentrage automatique
 function popOpts() { const m = $("map"), w = m.clientWidth || 360, h = m.clientHeight || 480;
   return { maxWidth: Math.max(220, Math.min(340, w - 70)), minWidth: Math.min(260, w - 70), maxHeight: Math.max(180, Math.round(h * 0.62)), autoPan: true, autoPanPadding: [20, 20], keepInView: true, className: "pp" }; }
+// Écartement des marqueurs qui se chevauchent à l'écran, avec un trait vers leur vraie position
+function declutter() {
+  if (!SP.map || !SP.layer) return;
+  if (!SP.leaders) SP.leaders = L.layerGroup().addTo(SP.map);
+  SP.leaders.clearLayers();
+  const cont = SP.map.getContainer(), cr = cont.getBoundingClientRect();
+  cont.classList.toggle("zlow", SP.map.getZoom() < 12);
+  const items = [];
+  SP.layer.eachLayer(l => { if (!(l instanceof L.Marker) || !l.options.dc) return; const el = l.getElement(), c = el && el.firstElementChild; if (!c) return;
+    c.style.transform = ""; const r = c.getBoundingClientRect(); if (!r.width) return;
+    items.push({ l, c, w: r.width + 4, h: r.height + 4, x: r.left - cr.left + r.width / 2, y: r.top - cr.top + r.height / 2, dx: 0, dy: 0, pri: l.options.dc }); });
+  for (let it = 0; it < 80; it++) { let moved = false;
+    for (let a = 0; a < items.length; a++) for (let b = a + 1; b < items.length; b++) { const A = items[a], B = items[b];
+      let cx = (B.x + B.dx) - (A.x + A.dx), cy = (B.y + B.dy) - (A.y + A.dy);
+      const ox = (A.w + B.w) / 2 - Math.abs(cx), oy = (A.h + B.h) / 2 - Math.abs(cy);
+      if (ox <= 0 || oy <= 0) continue; moved = true; if (!cx && !cy) cy = 1;
+      const wa = A.pri === B.pri ? 0.5 : A.pri < B.pri ? 0.8 : 0.2, wb = 1 - wa;
+      if (oy < ox) { const sg = Math.sign(cy) || 1; A.dy -= sg * oy * wa; B.dy += sg * oy * wb; } else { const sg = Math.sign(cx) || 1; A.dx -= sg * ox * wa; B.dx += sg * ox * wb; } }
+    if (!moved) break; }
+  const col = getComputedStyle(document.documentElement).getPropertyValue("--muted").trim();
+  items.forEach(I => { let m = Math.hypot(I.dx, I.dy); if (m > 90) { I.dx *= 90 / m; I.dy *= 90 / m; m = 90; }
+    if (m < 1) return; I.c.style.transform = `translate(${Math.round(I.dx)}px,${Math.round(I.dy)}px)`;
+    if (m > 10) L.polyline([I.l.getLatLng(), SP.map.containerPointToLatLng([I.x + I.dx, I.y + I.dy])], { color: col, weight: 1, opacity: 0.8, interactive: false }).addTo(SP.leaders); });
+}
 function initMap() {
   if (SP.map) return true;
   if (!window.L) { $("map").textContent = "Carte indisponible (bibliothèque non chargée). La liste reste utilisable."; return false; }
@@ -1691,6 +1717,7 @@ function initMap() {
   topo.addTo(SP.map); L.control.layers({ "Topographique": topo, "OpenStreetMap": osm, "Satellite": sat }).addTo(SP.map);
   SP.layer = L.layerGroup().addTo(SP.map);
   SP.map.on("click", e => clickPoint(e.latlng.lat, e.latlng.lng));
+  SP.map.on("zoomend", () => declutter());
   return true;
 }
 function popupHtml(t) { const r = t.res, sc = t.sc, nl = nearestLanding(t);
@@ -1715,17 +1742,18 @@ function renderSpots() {
   SP.layer.clearLayers();
   const c = SP.center; L.circle([c.lat, c.lon], { radius: c.r * 1000, color: getComputedStyle(document.documentElement).getPropertyValue("--accent"), weight: 1.5, fillOpacity: 0.04 }).addTo(SP.layer);
   L.marker([c.lat, c.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin ctr"></div>', iconSize: [14, 14] }), title: SP.here && S.place === "Ma position" ? "Votre position" : "Centre de recherche" }).addTo(SP.layer);
-  SP.landings.forEach(l => L.marker([l.lat, l.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin land">A</div>', iconSize: [20, 20] }), title: l.name })
+  SP.landings.forEach(l => L.marker([l.lat, l.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin land">A</div>', iconSize: [20, 20] }), title: l.name, dc: 1 })
     .bindPopup(`<div class="pop"><h4>${esc(l.name)}</h4><div class="meta">Atterrissage · ${l.alt != null ? Math.round(l.alt) + " m" : "alt. ?"}</div>${ffvlHtml(l)}<a href="${esc(l.url)}" target="_blank" rel="noopener">${l.src === "FFVL" ? "Rechercher le site sur ffvl.fr" : "Fiche " + esc(l.src)} ↗</a></div>`, popOpts()).addTo(SP.layer));
   drawBeacons();
   SP.takeoffs.forEach(t => { const a = slopeArrow(t); if (a) a.addTo(SP.layer); });
   SP.takeoffs.forEach(t => { const sc = t.sc;
     const html = sc ? `<div class="pin2" title="Déco ${sc.D} · Thermique ${sc.T}"><span class="${sc.dc}">${sc.D}</span><span class="${sc.tc}">${sc.T}</span></div>` : '<div class="pin2"><span class="mute">?</span></div>';
     const fm = t.face ? meanOri(t.ori) : null, sx = fm === null ? 0 : Math.sin(fm * Math.PI / 180) * 24, sy = fm === null ? 0 : -Math.cos(fm * Math.PI / 180) * 16;
-    t.marker = L.marker([t.lat, t.lon], { icon: L.divIcon({ className: "clear", html, iconSize: [60, 24], iconAnchor: [30 - sx, 12 - sy] }), title: t.name, zIndexOffset: sc ? Math.round(sc.rank * 10) : 0 })
+    t.marker = L.marker([t.lat, t.lon], { icon: L.divIcon({ className: "clear", html, iconSize: [60, 24], iconAnchor: [30 - sx, 12 - sy] }), title: t.name, dc: 3, zIndexOffset: sc ? Math.round(sc.rank * 10) : 0 })
       .bindPopup(sc ? popupHtml(t) : `<div class="pop"><h4>${esc(t.name)}</h4><div class="meta">Non noté (hors des 40 plus proches)</div></div>`, popOpts()).addTo(SP.layer); });
   if (!SP.fitted) { const bb = L.latLng(c.lat, c.lon).toBounds(c.r * 2000), fit = () => { SP.map.invalidateSize(); SP.map.fitBounds(bb, { padding: [10, 10] }); };
-    fit(); setTimeout(fit, 300); SP.fitted = true; }
+    fit(); setTimeout(() => { fit(); declutter(); }, 300); SP.fitted = true; }
+  else declutter();
 }
 function scoreAll() {
   const i = SP.hour;
@@ -1917,7 +1945,7 @@ $("spotsBtn").addEventListener("click", searchSpots);
 function setSide(open) {
   $("spotsGrid").classList.toggle("closed", !open); $("sideOpen").setAttribute("aria-expanded", String(open)); $("sideClose").setAttribute("aria-expanded", String(open));
   try { localStorage.setItem("emagramme-side", open ? "1" : "0"); } catch {}
-  if (SP.map) setTimeout(() => SP.map.invalidateSize(), 50);
+  if (SP.map) setTimeout(() => { SP.map.invalidateSize(); declutter(); }, 80);
 }
 $("sideOpen").addEventListener("click", () => setSide(true));
 $("sideClose").addEventListener("click", () => setSide(false));
@@ -1988,8 +2016,8 @@ function beaconLine(o) { return `${/^balise/i.test(o.name) ? "" : "Balise "}${o.
 function drawBeacons() {
   if (!SP.map) return;
   SP.beacons.forEach(b => { const cls = beaconCls(b);
-    const html = `<div class="bal ${cls}"><svg viewBox="0 0 24 24" style="transform:rotate(${(b.dir + 180) % 360}deg)"><path d="M12 2 L19 21 L12 16 L5 21 Z" fill="currentColor"/></svg>${Math.round(b.avg)}/${Math.round(b.max)}</div>`;
-    L.marker([b.lat, b.lon], { icon: L.divIcon({ className: "clear", html, iconSize: [64, 20], iconAnchor: [10, 10] }), title: b.name, zIndexOffset: -100 })
+    const html = `<div class="bal ${cls}"><svg viewBox="0 0 24 24" style="transform:rotate(${(b.dir + 180) % 360}deg)"><path d="M12 2 L19 21 L12 16 L5 21 Z" fill="currentColor"/></svg><span class="t">${Math.round(b.avg)}/${Math.round(b.max)}</span></div>`;
+    L.marker([b.lat, b.lon], { icon: L.divIcon({ className: "clear", html, iconSize: [64, 20], iconAnchor: [10, 10] }), title: b.name, dc: 2, zIndexOffset: -100 })
       .bindPopup(`<div class="pop"><h4>${esc(b.name)}</h4><div class="meta">Balise ${esc(b.src)}${b.alt != null ? ` · ${Math.round(b.alt)} m` : ""} · ${agoTxt(b)}</div>
         <div>Vent du ${esc(dirName(b.dir))} (${Math.round(b.dir)}°) : <b>${Math.round(b.avg)} km/h</b>, rafales ${Math.round(b.max)} km/h</div>
         <a href="${esc(b.url)}" target="_blank" rel="noopener">Voir la balise ↗</a></div>`, popOpts()).addTo(SP.layer); });
