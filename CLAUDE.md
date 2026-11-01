@@ -47,6 +47,8 @@ Sections repérées par des commentaires `// ---------- … ----------`, dans ce
 - Un site FFVL **interdit** est noté 0 ; afficher statut, restrictions, avertissements et alertes FFVL dans les fiches.
 
 ## Sources de données (appelées directement depuis le navigateur)
+**Quota Open-Meteo** (gratuit sans clé, par connexion Internet : ~600 appels/min, 5 000/h, 10 000/jour ; un appel par lieu, fractionné au-delà de 10 variables) : toutes les prévisions passent par le cache `omGetC` / `omPutC` (mémoire + IndexedDB `parameteo`/`om`, 1 h par point, purge à 12 h) ; les requêtes multipoints passent par `omPoints(pts, mk)` (points en cache réutilisés, les autres par paquets de 10). `omUse` estime la consommation du jour (`localStorage` `emagramme-om-use`), affichée dans Paramètres. Carte des fronts gardée 6 h. Ne pas ajouter de requête Open-Meteo hors de ce cache.
+
 
 | Donnée | Adresse | Remarques |
 |---|---|---|

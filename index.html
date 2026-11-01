@@ -1177,9 +1177,11 @@ let fetchRetry = null;
 async function tryFetch(retry = 0) {
   updateLink(); clearTimeout(fetchRetry); msg(retry ? "Nouvel essai de téléchargement…" : "Téléchargement de la prévision en cours…"); situMsg("Téléchargement de la prévision…");
   const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 30000);
-  try { let r; try { r = await fetch(apiUrl(), { signal: ctrl.signal }); } catch (e) { throw new Error(e.name === "AbortError" ? "NET:délai dépassé (30 s)" : "NET:pas de réponse"); }
+  try { const url = apiUrl(); let d = await omGetC(url), r = { status: 200 };
+    if (!d) { omUse(url); try { r = await fetch(url, { signal: ctrl.signal }); } catch (e) { throw new Error(e.name === "AbortError" ? "NET:délai dépassé (30 s)" : "NET:pas de réponse"); }
+      try { d = await r.json(); } catch { throw new Error(`Open-Meteo : réponse illisible (HTTP ${r.status})`); }
+      if (d && d.hourly && !d.error) omPutC(url, d); }
     clearTimeout(to);
-    let d; try { d = await r.json(); } catch { throw new Error(`Open-Meteo : réponse illisible (HTTP ${r.status})`); }
     if (d && d.error) { const why = String(d.reason || "erreur");
       if ((r.status === 429 || /limit/i.test(why)) && /minutely/i.test(why) && retry < 2) { const m = `Open-Meteo : ${omReason(why)}. Nouvel essai automatique dans 1 minute.`; msg(m, "err"); situMsg(m, "err"); fetchRetry = setTimeout(() => tryFetch(retry + 1), 61000); return; }
       throw new Error("Open-Meteo : " + omReason(why)); }
@@ -1599,6 +1601,7 @@ function spotMsg(t, kind) { const m = $("spotsMsg"); m.hidden = !t; m.className 
 const esc = t => String(t ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 async function getJSON(url, ms = 25000, opts = {}) { const c = new AbortController(), to = setTimeout(() => c.abort(), ms);
+  if (url.includes("api.open-meteo.com/v1/forecast")) omUse(url);
   let r;
   try { r = await fetch(url, { ...opts, signal: c.signal }); }
   catch (e) { clearTimeout(to); throw new Error(e.name === "AbortError" ? "délai dépassé" : "accès bloqué (réseau ou autorisation du serveur)"); }
@@ -1608,6 +1611,45 @@ async function getJSON(url, ms = 25000, opts = {}) { const c = new AbortControll
     let d; try { d = await r.json(); } catch { throw new Error("réponse illisible"); }
     if (d && d.error) throw new Error(d.reason || "erreur"); return d;
   } finally { clearTimeout(to); } }
+// Cache des prévisions Open-Meteo (mémoire + IndexedDB, 1 h par point) et estimation de la consommation du quota gratuit
+const OMC = { mem: new Map(), dbP: null, ttl: 3600e3 };
+function omDb() {
+  return OMC.dbP ||= new Promise(res => { try { const r = indexedDB.open("parameteo", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("om");
+    r.onsuccess = () => { const db = r.result; res(db); try { const st = db.transaction("om", "readwrite").objectStore("om"), old = Date.now() - 12 * 3600e3;
+      st.openCursor().onsuccess = e => { const c = e.target.result; if (!c) return; if (!c.value || c.value.t < old) c.delete(); c.continue(); }; } catch { } };
+    r.onerror = () => res(null); } catch { res(null); } });
+}
+async function omGetC(k, ttl = OMC.ttl) {
+  const m = OMC.mem.get(k); if (m && Date.now() - m.t < ttl) return m.d;
+  const db = await omDb(); if (!db) return null;
+  return new Promise(res => { try { const q = db.transaction("om").objectStore("om").get(k);
+    q.onsuccess = () => { const v = q.result; if (v && Date.now() - v.t < ttl) { OMC.mem.set(k, v); res(v.d); } else res(null); }; q.onerror = () => res(null); } catch { res(null); } });
+}
+async function omPutC(k, d) {
+  const v = { t: Date.now(), d }; OMC.mem.set(k, v); const db = await omDb(); if (!db) return;
+  try { db.transaction("om", "readwrite").objectStore("om").put(v, k); } catch { }
+}
+// Poids d'une requête selon Open-Meteo : un appel par lieu, fractionné au-delà de 10 variables ou 14 jours
+function omUse(url) {
+  try { const q = new URL(url).searchParams, n = (q.get("latitude") || "").split(",").length, nv = (q.get("hourly") || "").split(",").length, days = +(q.get("forecast_days") || 7);
+    const w = n * Math.max(1, nv / 10) * Math.max(1, days / 14), day = new Date().toISOString().slice(0, 10);
+    let u = {}; try { u = JSON.parse(localStorage.getItem("emagramme-om-use") || "{}"); } catch { }
+    if (u.day !== day) u = { day, n: 0 }; u.n += w; localStorage.setItem("emagramme-om-use", JSON.stringify(u)); } catch { }
+}
+function omUseToday() { try { const u = JSON.parse(localStorage.getItem("emagramme-om-use") || "{}"); return u.day === new Date().toISOString().slice(0, 10) ? Math.round(u.n) : 0; } catch { return 0; } }
+// Prévision pour une liste de points : points déjà en cache réutilisés, les autres demandés par paquets de 10
+async function omPoints(pts, mk, timeout = 40000) {
+  const keys = pts.map(p => mk([p], true)), out = await Promise.all(keys.map(k => omGetC(k)));
+  const miss = out.map((v, k) => v ? -1 : k).filter(k => k >= 0), chunks = [];
+  for (let k = 0; k < miss.length; k += 10) chunks.push(miss.slice(k, k + 10));
+  let err = null;
+  await Promise.all(chunks.map(async ix => { const c = ix.map(k => pts[k]);
+    try { let d; try { d = await getJSON(mk(c, true), timeout); } catch (e) { if (/quota/.test(e.message)) throw e; d = await getJSON(mk(c, false), timeout); }
+      const arr = Array.isArray(d) ? d : [d]; ix.forEach((k, m) => { if (arr[m] && arr[m].hourly) { out[k] = arr[m]; omPutC(keys[k], arr[m]); } });
+    } catch (e) { err = e; } }));
+  return { res: out.map(v => v || null), err };
+}
 const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter"];
 
 async function fetchOSM(lat, lon, rkm) {
@@ -2058,10 +2100,9 @@ async function loadSector() {
   lv.forEach(L => ["wind_speed", "wind_direction", "geopotential_height"].forEach(n => v.push(`${n}_${L}hPa`)));
   const url = (c, elev) => `https://api.open-meteo.com/v1/forecast?latitude=${c.map(p => p.lat.toFixed(4)).join(",")}&longitude=${c.map(p => p.lon.toFixed(4)).join(",")}`
     + (elev ? "&elevation=" + c.map(() => "nan").join(",") : "") + `&models=${$("model").value}&hourly=${v.join(",")}&wind_speed_unit=kn&timezone=auto&forecast_days=2`;
-  const chunks = []; for (let k = 0; k < pts.length; k += 10) chunks.push(pts.slice(k, k + 10));
-  const res = await Promise.allSettled(chunks.map(async c => { let d; try { d = await getJSON(url(c, true), 40000); } catch { d = await getJSON(url(c, false), 40000); } return Array.isArray(d) ? d : [d]; }));
+  const { res } = await omPoints(pts, url);
   SP.nb = {};
-  res.forEach((x, k) => { if (x.status !== "fulfilled") return; x.value.forEach((d, m) => { const p = chunks[k][m]; if (!p || !d || !d.hourly) return; (SP.nb[p.id] = SP.nb[p.id] || []).push(datasetOf(d)); }); });
+  res.forEach((d, k) => { const p = pts[k]; if (!d || !d.hourly) return; (SP.nb[p.id] = SP.nb[p.id] || []).push(datasetOf(d)); });
   const n = Object.keys(SP.nb).length;
   SP.secTxt = n ? `Cohérence du secteur évaluée pour les ${n} meilleurs décos.` : "Cohérence du secteur indisponible.";
 }
@@ -2166,11 +2207,9 @@ async function getExtraSites(lat, lon, r) {
   return { sites, note, cached: false };
 }
 async function fetchForecasts(list) {
-  const chunks = []; for (let i = 0; i < list.length; i += 10) chunks.push(list.slice(i, i + 10));
-  const one = async c => { let d; try { d = await getJSON(spotUrl(c, true), 40000); } catch (e) { d = await getJSON(spotUrl(c, false), 40000); } return Array.isArray(d) ? d : [d]; };
-  const res = await Promise.allSettled(chunks.map(one));
-  if (res.every(x => x.status === "rejected")) throw new Error("prévision indisponible (" + ((res[0].reason && res[0].reason.message) || "erreur") + ")");
-  return res.flatMap((x, k) => x.status === "fulfilled" ? x.value : Array(chunks[k].length).fill(null));
+  const { res, err } = await omPoints(list, spotUrl);
+  if (res.every(x => !x)) throw new Error("prévision indisponible (" + ((err && err.message) || "erreur") + ")");
+  return res;
 }
 // Clic n'importe où sur la carte : prévision, plafond et notes de ce point
 function slopeArrow(t) { const g = t.terrain; if (!g || g.mode === "axe-plat" || g.slope < RULES.sun.minSlope || !window.L) return null;
@@ -2197,7 +2236,7 @@ async function clickPoint(lat, lon) {
   showFiche(SP.clickMarker, '<div class="pop"><h4>Point choisi</h4><div class="meta">Prévision en cours…</div></div>');
   try {
     const one = [{ lat, lon }];
-    const [d, e] = await Promise.all([getJSON(spotUrl(one, true), 30000).catch(() => getJSON(spotUrl(one, false), 30000)),
+    const [d, e] = await Promise.all([omPoints(one, spotUrl, 30000).then(x => { if (!x.res[0]) throw x.err || new Error("prévision indisponible"); return x.res[0]; }),
       getJSON(`https://api.open-meteo.com/v1/elevation?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`, 10000).catch(() => null)]);
     const D = datasetOf(Array.isArray(d) ? d[0] : d), pt = { lat, lon, ori: [] };
     await Promise.all([loadTerrain([pt]).catch(() => {}), loadGround([pt]).catch(() => {})]);
@@ -2379,7 +2418,8 @@ function rulesHtml() {
     [`Pluie de ${fr(RULES.trend.rain[0])} mm ou plus, flux à 700 hPa de ${RULES.trend.flux[0]} km/h ou plus, nuages bas ≥ ${RULES.trend.low} % ou nuages moyens + hauts ≥ ${RULES.trend.midHigh} %`, "À surveiller"],
     ["Sinon", "Favorable a priori"]])}
   <h3>Données et mises à jour</h3>
-  ${tbl([["Prévision", "Météo-France AROME / ARPEGE via Open-Meteo"], ["Terrains FFVL (data.gouv.fr)", "gardés 24 h"], ["Terrain IGN RGE ALTI (data.geopf.fr)", "gardé dans le navigateur"], ["Liste des balises FFVL", "gardée 24 h"],
+  <p>Open-Meteo est gratuit sans clé, avec un quota par connexion Internet (environ 600 appels par minute, 5 000 par heure, 10 000 par jour). Une recherche de sites compte pour un appel par déco (davantage avec beaucoup de variables), la carte des fronts pour ~300. Les prévisions déjà téléchargées sont réutilisées pendant 1 h. Consommation estimée aujourd'hui dans ce navigateur : <b>${omUseToday().toLocaleString("fr-FR")}</b> appels.</p>
+  ${tbl([["Prévision", "Météo-France AROME / ARPEGE via Open-Meteo, gardée 1 h par point"], ["Carte des fronts", "gardée 6 h"], ["Terrains FFVL (data.gouv.fr)", "gardés 24 h"], ["Terrain IGN RGE ALTI (data.geopf.fr)", "gardé dans le navigateur"], ["Liste des balises FFVL", "gardée 24 h"],
     ["Relevés des balises FFVL et Pioupiou", "relus à chaque recherche"], ["Sites OpenStreetMap / ParaglidingEarth (option)", "gardés 7 jours"], ["Décollages notés", "les 15, 25 ou 40 plus proches"]])}`;
 }
 $("rulesBtn").addEventListener("click", () => { $("rulesB").innerHTML = rulesHtml(); const d = $("rules"); if (d.showModal) d.showModal(); else d.setAttribute("open", ""); });
@@ -2508,7 +2548,7 @@ async function loadTrend() {
   if (TR.busy === key) return; TR.busy = key;
   $("trMsg").hidden = true; if (TR.key !== key) { $("trDays").innerHTML = '<p class="note">Chargement de la tendance…</p>'; }
   try {
-    const d = await getJSON(trUrl(+D.lat, +D.lon), 30000);
+    const u = trUrl(+D.lat, +D.lon); let d = await omGetC(u); if (!d) { d = await getJSON(u, 30000); omPutC(u, d); }
     const H = d.hourly; if (!H || !H.time) throw new Error("réponse sans données horaires");
     const gv = n => H[n] ?? H[Object.keys(H).find(k => k.startsWith(n + "_"))] ?? [];
     TR.data = { d, gv, times: H.time, lat: d.latitude, lon: d.longitude }; TR.key = key; TR.at = Date.now(); TR.hover = null; TR.day = null;
@@ -2665,7 +2705,7 @@ async function loadSynoptic(force) {
   if (!window.L) { $("frMap").textContent = "Carte indisponible (bibliothèque non chargée)."; return; }
   const frMsg = (t, k) => { const m = $("frMsg"); m.hidden = !t; m.className = "msg " + (k || ""); m.textContent = t || ""; };
   try {
-    if (!force) { try { const c = JSON.parse(localStorage.getItem("emagramme-fronts") || "null"); if (c && Date.now() - c.t < 3 * 3600e3) FR.data = c.d; } catch {} }
+    if (!force) { try { const c = JSON.parse(localStorage.getItem("emagramme-fronts") || "null"); if (c && Date.now() - c.t < 6 * 3600e3) FR.data = c.d; } catch {} }
     if (!FR.data) {
       frMsg("Téléchargement de la prévision sur l'Europe…");
       const pts = frGrid(), vars = "pressure_msl,temperature_850hPa,relative_humidity_850hPa,wind_speed_850hPa,wind_direction_850hPa", chunks = [];
