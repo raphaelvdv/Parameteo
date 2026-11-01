@@ -2423,7 +2423,7 @@ function switchTab(name, save = true) {
   if (save) { try { localStorage.setItem("emagramme-tab", name); } catch {} if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name); }
   setTimeout(() => {
     if (name === "voler") { draw(); if (SP.map) { SP.map.invalidateSize(); if (SP.center && !SP.visFit) { SP.map.fitBounds(L.latLng(SP.center.lat, SP.center.lon).toBounds(SP.center.r * 2000), { padding: [10, 10] }); SP.visFit = true; } declutter(); } }
-    if (name === "situation") { if (S.dataset) renderSituation(); if (FR.map) FR.map.invalidateSize(); else loadSynoptic(); }
+    if (name === "situation") { if (S.dataset) renderSituation(); if (FR.map) { FR.map.invalidateSize(); if (!FR.visFit) { FR.map.fitBounds([[FRG.lat0 + 1, FRG.lon0 + 1], [FRG.lat1 - 1, FRG.lon1 - 1]]); FR.visFit = true; } } else loadSynoptic(); }
   }, 30);
 }
 TABS.forEach((t, k) => { $("tab-" + t).addEventListener("click", () => switchTab(t));
@@ -2508,8 +2508,22 @@ function frAnalyse(k) {
     if (((ta - tb) * nx + (tc - td) * ny) <= 0) return; // maximum du gradient (TFP passe de − à + vers l'air chaud)
     const adv = (Uu.O[id] * gx[id] + Vv.O[id] * gy[id]) / 100 * 10.8; // K par 3 h (U en m/s, gradient en K/100 km)
     const type = adv > 0.6 ? "cold" : adv < -0.6 ? "warm" : "stat";
-    fronts.push({ a: toLL(p0), b: toLL(p1), type, nx, ny, g: gm[id] });
+    fronts.push({ p0, p1, a: toLL(p0), b: toLL(p1), type, nx, ny, g: gm[id] });
   });
+  // assemblage en lignes : extrémités communes (les cellules voisines partagent le point d'intersection)
+  const kk = q => q[0].toFixed(3) + "," + q[1].toFixed(3), adj = new Map();
+  fronts.forEach((f, n) => [kk(f.p0), kk(f.p1)].forEach(k2 => { if (!adj.has(k2)) adj.set(k2, []); adj.get(k2).push(n); }));
+  const used = new Set(), chains = [];
+  fronts.forEach((f, n) => { if (used.has(n)) return; used.add(n); const pts = [f.p0, f.p1], mem = [f];
+    const grow = end => { for (;;) { const e = end ? pts[pts.length - 1] : pts[0], c = (adj.get(kk(e)) || []).find(m => !used.has(m)); if (c === undefined) break;
+      used.add(c); const g = fronts[c], nx2 = kk(g.p0) === kk(e) ? g.p1 : g.p0; end ? pts.push(nx2) : pts.unshift(nx2); mem.push(g); } };
+    grow(true); grow(false);
+    const ll = pts.map(toLL); let len = 0; for (let m = 1; m < ll.length; m++) len += distKm(ll[m - 1][0], ll[m - 1][1], ll[m][0], ll[m][1]);
+    if (len < 250) return;
+    const cnt = { cold: 0, warm: 0, stat: 0 }; mem.forEach(g => cnt[g.type]++);
+    const type = cnt.cold >= cnt.warm && cnt.cold >= cnt.stat ? "cold" : cnt.warm >= cnt.stat ? "warm" : "stat";
+    let sm = ll; for (let it = 0; it < 2; it++) { const o = [sm[0]]; for (let m = 0; m < sm.length - 1; m++) { const a = sm[m], b = sm[m + 1]; o.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25], [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75]); } o.push(sm[sm.length - 1]); sm = o; }
+    chains.push({ pts: sm, type, len, mem }); });
   // isobares
   const pv = Ps.O.filter(v => v != null), lv = []; for (let L0 = Math.ceil(Math.min(...pv) / 4) * 4; L0 <= Math.max(...pv); L0 += 4) lv.push(L0);
   const iso = lv.map(L0 => ({ L: L0, segs: contour(Ps.O, Ps.NY, Ps.NX, L0, toLL) }));
@@ -2518,7 +2532,7 @@ function frAnalyse(k) {
   for (let i = 1; i < F.ny - 1; i++) for (let j = 1; j < F.nx - 1; j++) { const v = Pm[i * F.nx + j]; if (v == null) continue; let mn = true, mx = true;
     for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) { if (!a && !b) continue; const ii = i + a, jj = j + b; if (ii < 0 || jj < 0 || ii >= F.ny || jj >= F.nx) continue; const w = Pm[ii * F.nx + jj]; if (w == null) continue; if (w <= v) mn = false; if (w >= v) mx = false; }
     if (mn && v < 1012) cen.push({ t: "D", p: v, ll: [FRG.lat0 + i * FRG.dlat, FRG.lon0 + j * FRG.dlon] }); if (mx && v > 1016) cen.push({ t: "A", p: v, ll: [FRG.lat0 + i * FRG.dlat, FRG.lon0 + j * FRG.dlon] }); }
-  return { fronts, iso, cen, F };
+  return { fronts: chains, iso, cen, F };
 }
 function frSymbol(ll, type, nx, ny) {
   const dir = type === "warm" ? [-nx, -ny] : [nx, ny], ang = Math.atan2(dir[0], dir[1]) * 180 / Math.PI;
@@ -2534,9 +2548,9 @@ function renderFronts() {
     $("frMap").textContent = "";
     FR.map = L.map("frMap", { zoomSnap: 0.5, minZoom: 3, maxZoom: 8, scrollWheelZoom: true }).setView([47.5, 3], 4.5);
     const dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light";
-    L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark ? "dark_all" : "light_all"}/{z}/{x}/{y}.png`, { subdomains: "abcd", maxZoom: 19, attribution: "© OpenStreetMap, © CARTO" }).addTo(FR.map);
+    L.tileLayer(`https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/${dark ? "World_Dark_Gray_Base" : "World_Light_Gray_Base"}/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 16, attribution: "Fond © Esri, HERE, Garmin, © OpenStreetMap" }).addTo(FR.map);
     FR.layer = L.layerGroup().addTo(FR.map);
-    setTimeout(() => { FR.map.invalidateSize(); FR.map.fitBounds([[FRG.lat0 + 1, FRG.lon0 + 1], [FRG.lat1 - 1, FRG.lon1 - 1]]); }, 50);
+    setTimeout(() => { FR.map.invalidateSize(); if ($("frMap").clientWidth) { FR.map.fitBounds([[FRG.lat0 + 1, FRG.lon0 + 1], [FRG.lat1 - 1, FRG.lon1 - 1]]); FR.visFit = true; } }, 50);
   }
   const A = frAnalyse(FR.k), css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   FR.layer.clearLayers();
@@ -2544,8 +2558,11 @@ function renderFronts() {
     L.polyline(segs, { color: css("--muted"), weight: lev % 20 === 0 ? 1.8 : 1, opacity: 0.75, interactive: false }).addTo(FR.layer);
     [segs[Math.floor(segs.length * 0.3)], segs[Math.floor(segs.length * 0.75)]].forEach(sg => sg && L.marker(sg[0], { interactive: false, icon: L.divIcon({ className: "clear", html: `<span class="iso-lab">${lev}</span>`, iconSize: [34, 14], iconAnchor: [17, 7] }) }).addTo(FR.layer)); });
   const colF = { cold: css("--dew"), warm: css("--temp"), stat: css("--mixr") };
-  A.fronts.forEach((f, n) => { L.polyline([f.a, f.b], { color: colF[f.type], weight: 4, opacity: 0.95, dashArray: f.type === "stat" ? "6 4" : null, interactive: false }).addTo(FR.layer);
-    if (f.type !== "stat" && n % 3 === 0) frSymbol([(f.a[0] + f.b[0]) / 2, (f.a[1] + f.b[1]) / 2], f.type, f.nx, f.ny).addTo(FR.layer); });
+  A.fronts.forEach(ch => { L.polyline(ch.pts, { color: colF[ch.type], weight: 4, opacity: 0.95, dashArray: ch.type === "stat" ? "8 6" : null, interactive: false, lineJoin: "round" }).addTo(FR.layer);
+    if (ch.type === "stat") return; let acc = 0, next = 90;
+    for (let m = 1; m < ch.pts.length; m++) { const a = ch.pts[m - 1], b = ch.pts[m]; acc += distKm(a[0], a[1], b[0], b[1]);
+      if (acc >= next) { next += 170; const g = ch.mem.reduce((best, q) => { const d = distKm(b[0], b[1], (q.a[0] + q.b[0]) / 2, (q.a[1] + q.b[1]) / 2); return !best || d < best.d ? { d, q } : best; }, null).q;
+        frSymbol(b, ch.type, g.nx, g.ny).addTo(FR.layer); } } });
   A.cen.forEach(c => L.marker(c.ll, { interactive: false, icon: L.divIcon({ className: "clear", iconSize: [44, 34], iconAnchor: [22, 17], html: `<div class="hl-lab" style="color:${c.t === "D" ? css("--bad") : css("--accent")}">${c.t}<small>${Math.round(c.p)}</small></div>` }) }).addTo(FR.layer));
   const here = [+$("lat").value, +$("lon").value];
   if (isFinite(here[0])) L.marker(here, { interactive: false, title: S.place || "Lieu choisi", icon: L.divIcon({ className: "clear", html: '<div class="here-pin"></div>', iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(FR.layer);
@@ -2561,7 +2578,7 @@ function frText(A, here) {
     const g = Math.hypot(dpx, dpy) * 100, fc = 2 * 7.292e-5 * Math.sin(here[0] * Math.PI / 180), vg = Math.hypot(dpx, dpy) * 100 / 1e3 / (1.2 * fc) * 3.6;
     T.push(`<p><b>Gradient de pression au lieu.</b> ${fr(g)} hPa / 100 km, soit un vent géostrophique d'environ ${Math.round(vg)} km/h en air libre : ${g < 0.8 ? "gradient faible, régime de brises" : g < 1.6 ? "gradient modéré" : "gradient serré, vent synoptique fort"}.</p>`); }
   // front le plus proche, maintenant et dans les 24 h
-  const near = fs => fs.reduce((b, f) => { const m = [(f.a[0] + f.b[0]) / 2, (f.a[1] + f.b[1]) / 2], d = km(here, m); return !b || d < b.d ? { d, f, m } : b; }, null);
+  const near = fs => fs.reduce((b, f) => f.pts.reduce((bb, m) => { const d = km(here, m); return !bb || d < bb.d ? { d, f, m } : bb; }, b), null);
   const n0 = near(A.fronts.filter(f => f.type !== "stat")), lab = t => t === "cold" ? "front froid" : "front chaud";
   if (n0 && n0.d < 1200) T.push(`<p><b>Front le plus proche.</b> Un ${lab(n0.f.type)} ${where(n0.m)}.</p>`); else T.push("<p><b>Fronts.</b> Aucun front actif à moins de 1 200 km du lieu.</p>");
   let pass = null;
