@@ -36,6 +36,7 @@ Sections repérées par des commentaires `// ---------- … ----------`, dans ce
 - **Les notes (décollage et thermique, sur 100) reposent uniquement sur la prévision.** Les balises ne servent qu'à la comparaison prévu / mesuré, active à moins de 2 h de l'heure choisie.
 - **Tous les seuils de notation sont dans l'objet `RULES`.** Modifier un seuil = modifier `RULES` uniquement : `scoreSpot`, `compareBeacon` et la fenêtre « Paramètres » le lisent. Ne pas écrire de seuil en dur ailleurs. L'utilisateur ne peut pas modifier les règles depuis l'interface (choix voulu).
 - Les textes affichés doivent rester prudents : la note est indicative et ne remplace pas les bulletins officiels, les balises ni la fiche du site.
+- **Terrain IGN** (`loadTerrain`, `meanOri`, `terrHtml`, `slopeArrow`) : pour un **déco référencé**, l'orientation reste celle du déco et la pente est mesurée au MNT **sous le déco, dans son axe, sur 150 et 300 m** (la plus forte) — le point FFVL est souvent en retrait du bord (ex. Dent de Crolles : plateau vers le NO, falaise au S). Sans descente mesurée, pente supposée de 30°. Pour un **point cliqué**, pente et orientation locales (méthode de Horn, grille 3 × 3 à 25 m) ; si la pente ≥ 10°, elle sert d'orientation de « déco ». Flèche bleue = sens de descente.
 - **Chauffe des pentes** : le réglage « Chauffe max. » vaut pour un soleil perpendiculaire ; pour chaque déco, elle est multipliée par l'ensoleillement de la pente (orientation moyenne du déco, pente supposée de 30°, position du soleil à l'heure choisie) et réduite par la nébulosité totale (`cloud_cover`). Un déco ouvert à 5 orientations ou plus est traité comme un sommet.
 - **Cohérence du secteur** : pour les 10 meilleurs décos, 4 points voisins à 2,5 km (requête légère : vent, pluie, nuages bas) ; la variabilité rend la note plus prudente (retrait plafonné à 30 par note). Les autres décos affichent « non évaluée ».
 - Un site FFVL **interdit** est noté 0 ; afficher statut, restrictions, avertissements et alertes FFVL dans les fiches.
@@ -48,13 +49,14 @@ Sections repérées par des commentaires `// ---------- … ----------`, dans ce
 | Terrains FFVL | `https://www.data.gouv.fr/api/1/datasets/r/4375c95d-cf26-4e71-b72d-2e09be5a0e36` | `terrains.json`, ~3,7 Mo, mis à jour chaque jour ; gardé 24 h en `localStorage` |
 | Balises FFVL | `…/datasets/r/8d795154-9145-4ab2-99de-6768a36f31ea` | `balises.json`, gardé 24 h |
 | Relevés FFVL | `…/datasets/r/047b2ab9-627f-4e5f-9d68-5b948433c61d` | `releves.json`, toutes les 5 min ; vitesses en km/h |
+| Terrain IGN (RGE ALTI) | `https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=…|…&lat=…|…&resource=ign_rge_alti_wld&zonly=true` | Plusieurs points par requête (séparés par `|`), CORS ouvert ; valeurs < −1000 = hors couverture. Résultats gardés en `localStorage` |
 | Balises Pioupiou | `https://api.pioupiou.fr/v1/live/all` | Les stations OpenWindMap ne sont pas dans les relevés FFVL |
 | Sites (option) | Overpass (4 miroirs), ParaglidingEarth | Gardés 7 jours |
 | Fonds de carte | OpenTopoMap, OpenStreetMap, Esri | Leaflet 1.9.4 via cdnjs |
 
 L'API `data.ffvl.fr` exige une clé : **ne pas l'utiliser**, les mêmes données sont en open data sur data.gouv.fr (le lien `/api/1/datasets/r/<id>` redirige vers le fichier le plus récent et autorise les appels depuis le navigateur).
 
-Pour tester depuis un environnement cloud, autoriser dans le réseau de l'environnement : `data.ffvl.fr`, `www.data.gouv.fr`, `static.data.gouv.fr`. Open-Meteo, Overpass et les tuiles n'étaient pas joignables depuis l'environnement de développement : les tester avec des réponses simulées (Playwright, `page.route`).
+Pour tester depuis un environnement cloud, autoriser dans le réseau de l'environnement : `data.ffvl.fr`, `www.data.gouv.fr`, `static.data.gouv.fr`, `data.geopf.fr` (ce dernier est joignable : on peut tester avec les vraies altitudes IGN). Open-Meteo, Overpass et les tuiles n'étaient pas joignables depuis l'environnement de développement : les tester avec des réponses simulées (Playwright, `page.route`).
 
 ## Design
 
