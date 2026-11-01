@@ -1553,6 +1553,15 @@ const RULES = Object.freeze({
   cmp: { window: 2, dist: 10, dz: 600, near: 5, nearDz: 400, fresh: 60, dSpeed: 8, dDir: 45, gustWarn: 30, gustBad: 40, strong: 25 },
   sun: { slope: 30, cloudCut: 0.75, wideOri: 5, good: 0.6, weak: 0.3, grid: 25, minSlope: 5, pointOriSlope: 10, axis: [150, 300],
     tau: 0.7, airExp: 0.678, windFrom: 10, windTo: 40, windCut: 0.5, wet: [[5, 0.7], [1, 0.85]], snow: [[0.05, 0.25], [0.01, 0.6]] },
+  ground: [
+    { id: "glacier", name: "glacier ou névé", f: 0.3, t: [["natural", "glacier"]] },
+    { id: "water", name: "eau ou zone humide", f: 0.45, t: [["natural", "water"], ["natural", "wetland"], ["landuse", "reservoir"], ["landuse", "basin"]] },
+    { id: "rock", name: "roche ou éboulis", f: 1.15, t: [["natural", "bare_rock"], ["natural", "scree"], ["natural", "shingle"], ["natural", "cliff"], ["natural", "rock"], ["landuse", "quarry"]] },
+    { id: "forest", name: "forêt", f: 0.75, t: [["natural", "wood"], ["landuse", "forest"], ["landcover", "trees"]] },
+    { id: "scrub", name: "broussailles", f: 0.9, t: [["natural", "scrub"], ["landcover", "scrub"]] },
+    { id: "grass", name: "prairie, lande ou alpage", f: 1, t: [["natural", "grassland"], ["natural", "heath"], ["natural", "fell"], ["landuse", "meadow"], ["landuse", "grass"], ["landcover", "grass"]] },
+    { id: "farm", name: "cultures, vergers ou vignes", f: 0.95, t: [["landuse", "farmland"], ["landuse", "orchard"], ["landuse", "vineyard"], ["landuse", "allotments"]] },
+    { id: "urban", name: "zone bâtie", f: 1.05, t: [["landuse", "residential"], ["landuse", "industrial"], ["landuse", "commercial"], ["landuse", "retail"]] }],
   sector: { top: 10, dist: 2.5, speedBad: 15, speedBadPen: 15, speedWarn: 10, speedWarnPen: 8, dirSpread: 90, dirPen: 10,
     rainNear: 0.5, rainPen: 10, lowRange: 50, lowPen: 5, maxPen: 30 }
 });
@@ -1567,6 +1576,29 @@ function sunPos(lat, lon, ms) {
   const el = Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H));
   const az = (Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi)) / rad + 180 + 360) % 360;
   return { el: el / rad, az };
+}
+// Nature du sol sous le déco (OpenStreetMap) : zones natural / landuse / landcover qui contiennent le point de la pente
+SP.grd = (() => { try { return JSON.parse(localStorage.getItem("emagramme-sol") || "{}") || {}; } catch { return {}; } })();
+function classifyGround(tags) {
+  for (const c of RULES.ground) if (tags.some(t => c.t.some(([k, v]) => t[k] === v))) return { id: c.id, name: c.name, f: c.f };
+  return { id: "unknown", name: "non cartographié", f: 1 };
+}
+async function loadGround(list) {
+  const key = p => `${p.lat.toFixed(4)},${p.lon.toFixed(4)}|${meanOri(p.ori) ?? "-"}`;
+  const need = list.filter(p => !SP.grd[key(p)]);
+  for (let k0 = 0; k0 < need.length; k0 += 20) {
+    const c = need.slice(k0, k0 + 20), rad = Math.PI / 180, d = RULES.sun.axis[0];
+    const pts = c.map(p => { const m = meanOri(p.ori); return m === null ? [p.lat, p.lon] : [p.lat + Math.cos(m * rad) * d / 111200, p.lon + Math.sin(m * rad) * d / (111200 * Math.cos(p.lat * rad))]; });
+    const q = "[out:json][timeout:25];" + pts.map(([a, b], k) => `is_in(${a.toFixed(6)},${b.toFixed(6)})->.a;make pt n=${k};out;(way(pivot.a)[~"^(natural|landuse|landcover)$"~"."];rel(pivot.a)[~"^(natural|landuse|landcover)$"~"."];);out tags;`).join("");
+    let res = null;
+    for (const u of OVERPASS) { try { res = await getJSON(u, 25000, { method: "POST", body: "data=" + encodeURIComponent(q), headers: { "Content-Type": "application/x-www-form-urlencoded" } }); break; } catch (e) { console.warn("Sol OSM", u, e); } }
+    if (!res) { SP.grdErr = true; continue; }
+    let cur = -1; const tags = c.map(() => []);
+    (res.elements || []).forEach(e => { if (e.type === "pt") cur = +((e.tags || {}).n); else if (cur >= 0 && tags[cur]) tags[cur].push(e.tags || {}); });
+    c.forEach((p, k) => { SP.grd[key(p)] = classifyGround(tags[k]); });
+  }
+  try { const ks = Object.keys(SP.grd); if (ks.length > 800) ks.slice(0, ks.length - 800).forEach(k => delete SP.grd[k]); localStorage.setItem("emagramme-sol", JSON.stringify(SP.grd)); } catch {}
+  list.forEach(p => { p.ground = SP.grd[key(p)] || null; });
 }
 // Terrain IGN (RGE ALTI) : pente et orientation par la méthode de Horn sur une grille 3 × 3
 const TERR_KEY = "emagramme-terrain";
@@ -1640,8 +1672,9 @@ function slopeSun(site, D, i, wk) {
   f.wet = (U.wet.find(([mm]) => rain24 >= mm) || [0, 1])[1];
   // neige au sol (si le modèle la fournit)
   const sd = (D.gv("snow_depth") || [])[i]; f.snow = sd == null ? 1 : (U.snow.find(([m]) => sd >= m) || [0, 1])[1];
-  const dT = Math.round((isFinite(ref) ? ref : 4) * inc * f.sun * f.cloud * f.wind * f.wet * f.snow * 10) / 10;
-  return { el: sp.el, az: sp.az, aspect, inc, cloud, dT, src, slope: beta / rad, f, rain24, snowDepth: sd, ref: isFinite(ref) ? ref : 4 };
+  f.ground = site.ground ? site.ground.f : 1;
+  const dT = Math.round((isFinite(ref) ? ref : 4) * inc * f.sun * f.cloud * f.wind * f.wet * f.snow * f.ground * 10) / 10;
+  return { ground: site.ground || null, el: sp.el, az: sp.az, aspect, inc, cloud, dT, src, slope: beta / rad, f, rain24, snowDepth: sd, ref: isFinite(ref) ? ref : 4 };
 }
 // Vent interpolé à une altitude, pour un point de prévision (10 m + niveaux de pression)
 function windAtAltD(D, i, z) {
@@ -1680,6 +1713,7 @@ function heatWhy(u) { const f = u.f; if (!f) return ""; const L = [];
   if (f.sun < 0.95) L.push(`soleil bas ${Math.round(f.sun * 100)} %`);
   if (f.wind < 0.98) L.push(`vent ${Math.round(f.wind * 100)} %`);
   if (f.wet < 1) L.push(`sol mouillé ${Math.round(f.wet * 100)} % (${fr(u.rain24)} mm en 24 h)`);
+  if (u.ground && u.ground.id !== "unknown") L.push(`sol : ${u.ground.name} ${Math.round(u.ground.f * 100)} %`);
   if (f.snow < 1) L.push(`neige ${Math.round(f.snow * 100)} %`);
   return L.length ? ` (réf. ${fr(u.ref)} °C ; ${L.join(", ")})` : ` (réf. ${fr(u.ref)} °C)`; }
 function scoreSpot(site, r, sec) {
@@ -1897,7 +1931,7 @@ async function searchSpots() {
     if (!SP.takeoffs.length) { SP.data = []; renderSpots(); spotMsg("Aucun décollage référencé dans ce rayon. Agrandissez le rayon ou déplacez le centre.", "err"); return; }
     const scored = SP.takeoffs.slice(0, +$("spotN").value || 25);
     spotMsg(`${SP.takeoffs.length} décollages trouvés${got.cached ? " (liste en mémoire)" : ""}. Prévision ${MODEL_NAMES[$("model").value] || ""} pour les ${scored.length} plus proches…`);
-    const terrP = loadTerrain(scored).catch(e => console.warn(e));
+    const terrP = Promise.all([loadTerrain(scored).catch(e => console.warn(e)), loadGround(scored).catch(e => console.warn(e))]);
     const locKey = t => `${t.lat.toFixed(4)},${t.lon.toFixed(4)}`, uniq = [...new Map(scored.map(t => [locKey(t), t])).values()];
     const t1 = performance.now(), arrU = await fetchForecasts(uniq); await terrP;
     const byLoc = new Map(uniq.map((t, k) => [locKey(t), arrU[k]])), arr = scored.map(t => byLoc.get(locKey(t)));
@@ -1997,7 +2031,7 @@ function terrHtml(t) { const g = t.terrain; if (!g) return "";
   const txt = g.mode === "horn" ? `pente ${Math.round(g.slope)}°${g.slope >= RULES.sun.minSlope ? `, descend vers ${abbr(g.aspect)} (${Math.round(g.aspect)}°)` : " (quasi plat)"}`
     : g.mode === "axe" ? `pente ${Math.round(g.slope)}° sous le déco, dans son axe (${abbr(g.aspect)}, mesurée sur ${RULES.sun.axis.join(" et ")} m)`
     : `pas de descente mesurée dans l'axe du déco (point FFVL en retrait ?) ; pente supposée de ${RULES.sun.slope}°`;
-  return `<div class="meta">Terrain IGN : ${esc(txt)}, altitude ${Math.round(g.z)} m</div>`; }
+  return `<div class="meta">Terrain IGN : ${esc(txt)}, altitude ${Math.round(g.z)} m${t.ground ? ` · sol (OpenStreetMap) : ${esc(t.ground.name)}` : ""}</div>`; }
 function pointHtml(t) {
   const r = t.res, sc = t.sc, w = r.wind, li = arr => `<ul class="why">${arr.map(x => `<li class="${x.cls}">${esc(x.t)}</li>`).join("")}</ul>`;
   return `<div class="pop"><h4>Point choisi</h4><div class="meta">${t.lat.toFixed(4)}, ${t.lon.toFixed(4)} · ${t.alt != null ? Math.round(t.alt) + " m" : "alt. ?"} · ${esc(t.timeTxt)}</div>
@@ -2017,11 +2051,11 @@ async function clickPoint(lat, lon) {
     const [d, e] = await Promise.all([getJSON(spotUrl(one, true), 30000).catch(() => getJSON(spotUrl(one, false), 30000)),
       getJSON(`https://api.open-meteo.com/v1/elevation?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`, 10000).catch(() => null)]);
     const D = datasetOf(Array.isArray(d) ? d[0] : d), pt = { lat, lon, ori: [] };
-    await loadTerrain([pt]).catch(() => {});
+    await Promise.all([loadTerrain([pt]).catch(() => {}), loadGround([pt]).catch(() => {})]);
     const alt = pt.terrain ? pt.terrain.z : e && e.elevation && isFinite(e.elevation[0]) ? e.elevation[0] : D.elev;
     let i = SP.times.length ? D.times.indexOf(SP.times[SP.hour]) : -1;
     if (i < 0) { const today = new Date().toISOString().slice(0, 10); i = Math.max(0, D.times.findIndex(t => t.slice(11, 13) === "14" && t.slice(0, 10) >= today)); }
-    const site = { id: "point", src: "Carte", name: "Point choisi", lat, lon, alt, terrain: pt.terrain,
+    const site = { id: "point", src: "Carte", name: "Point choisi", lat, lon, alt, terrain: pt.terrain, ground: pt.ground,
       ori: pt.terrain && pt.terrain.mode === "horn" && pt.terrain.slope >= RULES.sun.pointOriSlope ? [pt.terrain.aspect] : [], nok: [], kind: "takeoff", url: "", D, i,
       timeTxt: `${new Date(D.times[i]).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" })} ${D.times[i].slice(11, 16)}` };
     site.res = analyzeSpot(site, D, i); site.sc = scoreSpot(site, site.res, null);
@@ -2171,11 +2205,15 @@ function rulesHtml() {
     ["Sans données IGN (hors France, service indisponible)", `orientations du déco, pente supposée de ${RULES.sun.slope}°`],
     [`Point cliqué sur la carte, pente ≥ ${RULES.sun.pointOriSlope}°`, "orientation du « déco » = sens de descente de la pente"], ["Flèche bleue sur la carte", "sens de descente du terrain"], [`Déco ouvert à ${RULES.sun.wideOri} orientations ou plus, ou sans orientation`, "traité comme un sommet (surface horizontale)"],
     ["Ensoleillement", "angle d'incidence du soleil sur la pente, de 0 à 100 %"], [`Effet des nuages (nébulosité totale)`, `jusqu'à −${Math.round(RULES.sun.cloudCut * 100)} %`],
-    ["Chauffe du déco", "chauffe de référence × ensoleillement × saison × nuages × vent × sol mouillé × neige"],
+    ["Chauffe du déco", "chauffe de référence × ensoleillement × saison × nuages × vent × sol mouillé × neige × nature du sol"],
     ["Saison et heure", `intensité du rayonnement selon la hauteur du soleil (épaisseur d'atmosphère traversée) : ~100 % soleil haut d'été, ~65–70 % à midi en hiver`],
     [`Vent au déco de ${RULES.sun.windFrom} à ${RULES.sun.windTo} km/h et plus`, `chauffe réduite progressivement, jusqu'à −${Math.round(RULES.sun.windCut * 100)} %`],
     ...RULES.sun.wet.map(([mm, k]) => [`Pluie des 24 h précédentes ≥ ${fr(mm)} mm (sol mouillé)`, `× ${fr(k)}`]),
     ...RULES.sun.snow.map(([m, k]) => [`Neige au sol ≥ ${Math.round(m * 100)} cm (si fournie par le modèle)`, `× ${fr(k)}`]), [`Ensoleillement ≥ ${Math.round(RULES.sun.good * 100)} % / ≥ ${Math.round(RULES.sun.weak * 100)} %`, "vert / orange (sinon rouge)"]])}
+  <h3>Nature du sol</h3>
+  <p>La chauffe dépend aussi de la surface : la roche sèche chauffe fort, la forêt et les zones humides beaucoup moins (évaporation, ombre). La nature du sol est lue dans OpenStreetMap au point de la pente situé à ${RULES.sun.axis[0]} m sous le déco, dans son axe (au point lui-même pour un sommet ou un point cliqué).</p>
+  ${tbl([...RULES.ground.map(g => [g.name.charAt(0).toUpperCase() + g.name.slice(1), `× ${fr(g.f)}`]), ["Non cartographié ou OpenStreetMap indisponible", "× 1"],
+    ["Plusieurs zones au même endroit", "la première de cette liste l'emporte"]])}
   <h3>Cohérence du secteur</h3>
   <p>Pour les ${RULES.sector.top} meilleurs décos, la prévision est aussi lue en 4 points voisins à ${fr(RULES.sector.dist)} km (nord, sud, est, ouest). Plus le secteur est hétérogène, plus la note est prudente.</p>
   ${tbl([[`Écart de vent à l'altitude du déco ≥ ${RULES.sector.speedBad} km/h`, `déco −${RULES.sector.speedBadPen}`], [`Écart de vent ≥ ${RULES.sector.speedWarn} km/h`, `déco −${RULES.sector.speedWarnPen}`],
