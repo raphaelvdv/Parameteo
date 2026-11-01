@@ -27,7 +27,7 @@ Sections repérées par des commentaires `// ---------- … ----------`, dans ce
 5. **Rendu** (`draw`) : émagramme 761 sur canvas, isothermes inclinées à 45°, couleurs lues dans les variables CSS.
 6. **Panneaux**, **Import Open-Meteo / texte** (`loadOpenMeteo`, `sndFromHour`, `parseText`), **Événements**.
 7. **Didacticiel** (`TUT`) et **Lecture commentée** (`READ`) : même moteur d'étapes (`renderStep`, `curSteps`), textes de la lecture générés à partir des données.
-8. **Sites de vol** : terrains FFVL (`ffvlTerrains`, `ffvlSitesAround`), OpenStreetMap / ParaglidingEarth en option (`getExtraSites`), prévision par paquets (`fetchForecasts`), analyse par site (`analyzeSpot`), **notation** (`RULES`, `scoreSpot`), carte Leaflet et classement en volet (`renderSpots`, `setSide`).
+8. **Sites de vol** : terrains FFVL (`ffvlTerrains`, `ffvlSitesAround`), OpenStreetMap / ParaglidingEarth en option (`getExtraSites`), prévision par paquets (`fetchForecasts`), analyse par site (`analyzeSpot`), **ensoleillement des pentes** (`sunPos`, `slopeSun`), **cohérence du secteur** (`loadSector`, `sectorEval`, `windAtAltD`), **notation** (`RULES`, `scoreSpot`), carte Leaflet et classement en volet (`renderSpots`, `setSide`).
 9. **Balises** : FFVL et Pioupiou (`fetchFFVL`, `fetchPioupiou`, `beaconFor`), comparaison prévu / mesuré (`compareBeacon`, `cmpHtml`).
 10. **Paramètres** (`rulesHtml`) : fenêtre en lecture seule générée depuis `RULES`.
 
@@ -36,6 +36,8 @@ Sections repérées par des commentaires `// ---------- … ----------`, dans ce
 - **Les notes (décollage et thermique, sur 100) reposent uniquement sur la prévision.** Les balises ne servent qu'à la comparaison prévu / mesuré, active à moins de 2 h de l'heure choisie.
 - **Tous les seuils de notation sont dans l'objet `RULES`.** Modifier un seuil = modifier `RULES` uniquement : `scoreSpot`, `compareBeacon` et la fenêtre « Paramètres » le lisent. Ne pas écrire de seuil en dur ailleurs. L'utilisateur ne peut pas modifier les règles depuis l'interface (choix voulu).
 - Les textes affichés doivent rester prudents : la note est indicative et ne remplace pas les bulletins officiels, les balises ni la fiche du site.
+- **Chauffe des pentes** : le réglage « Chauffe max. » vaut pour un soleil perpendiculaire ; pour chaque déco, elle est multipliée par l'ensoleillement de la pente (orientation moyenne du déco, pente supposée de 30°, position du soleil à l'heure choisie) et réduite par la nébulosité totale (`cloud_cover`). Un déco ouvert à 5 orientations ou plus est traité comme un sommet.
+- **Cohérence du secteur** : pour les 10 meilleurs décos, 4 points voisins à 2,5 km (requête légère : vent, pluie, nuages bas) ; la variabilité rend la note plus prudente (retrait plafonné à 30 par note). Les autres décos affichent « non évaluée ».
 - Un site FFVL **interdit** est noté 0 ; afficher statut, restrictions, avertissements et alertes FFVL dans les fiches.
 
 ## Sources de données (appelées directement depuis le navigateur)
