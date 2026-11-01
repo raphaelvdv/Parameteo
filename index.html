@@ -1499,6 +1499,20 @@ function sunPos(lat, lon, ms) {
 const TERR_KEY = "emagramme-terrain";
 SP.terr = (() => { try { return JSON.parse(localStorage.getItem(TERR_KEY) || "{}") || {}; } catch { return {}; } })();
 const terrKey = p => `${p.lat.toFixed(5)},${p.lon.toFixed(5)}`;
+// Un déco ouvert à des orientations non contiguës (ex. N et SE) devient un déco par face
+function oriGroups(ori) {
+  const u = [...new Set(ori.map(o => Math.round((((o % 360) + 360) % 360) * 10) / 10))].sort((a, b) => a - b);
+  if (u.length < 2) return [u];
+  const g = [[u[0]]]; for (let k = 1; k < u.length; k++) { if (u[k] - u[k - 1] <= 45.01) g[g.length - 1].push(u[k]); else g.push([u[k]]); }
+  if (g.length > 1 && u[0] + 360 - u[u.length - 1] <= 45.01) g[0] = [...g.pop(), ...g[0]];
+  return g;
+}
+function splitFaces(t) {
+  if (!t.ori || t.ori.length < 2) return [t];
+  const g = oriGroups(t.ori); if (g.length < 2) return [t];
+  return g.map((o, k) => { const lab = [...new Set(o.map(abbr))].join(", ");
+    return { ...t, id: `${t.id}~${k}`, baseId: t.id, ori: o, face: lab, name: `${t.name} · face ${lab}` }; });
+}
 function meanOri(ori) { if (!ori || !ori.length || ori.length >= RULES.sun.wideOri) return null; const rad = Math.PI / 180;
   const x = ori.reduce((a, o) => a + Math.sin(o * rad), 0), y = ori.reduce((a, o) => a + Math.cos(o * rad), 0);
   return Math.hypot(x, y) / ori.length > 0.3 ? (Math.atan2(x, y) / rad + 360) % 360 : null; }
@@ -1703,7 +1717,8 @@ function renderSpots() {
   SP.takeoffs.forEach(t => { const a = slopeArrow(t); if (a) a.addTo(SP.layer); });
   SP.takeoffs.forEach(t => { const sc = t.sc;
     const html = sc ? `<div class="pin2" title="Déco ${sc.D} · Thermique ${sc.T}"><span class="${sc.dc}">${sc.D}</span><span class="${sc.tc}">${sc.T}</span></div>` : '<div class="pin2"><span class="mute">?</span></div>';
-    t.marker = L.marker([t.lat, t.lon], { icon: L.divIcon({ className: "clear", html, iconSize: [60, 24], iconAnchor: [30, 12] }), title: t.name, zIndexOffset: sc ? Math.round(sc.rank * 10) : 0 })
+    const fm = t.face ? meanOri(t.ori) : null, sx = fm === null ? 0 : Math.sin(fm * Math.PI / 180) * 24, sy = fm === null ? 0 : -Math.cos(fm * Math.PI / 180) * 16;
+    t.marker = L.marker([t.lat, t.lon], { icon: L.divIcon({ className: "clear", html, iconSize: [60, 24], iconAnchor: [30 - sx, 12 - sy] }), title: t.name, zIndexOffset: sc ? Math.round(sc.rank * 10) : 0 })
       .bindPopup(sc ? popupHtml(t) : `<div class="pop"><h4>${esc(t.name)}</h4><div class="meta">Non noté (hors des 40 plus proches)</div></div>`, { maxWidth: 330 }).addTo(SP.layer); });
   if (!SP.fitted) { const bb = L.latLng(c.lat, c.lon).toBounds(c.r * 2000), fit = () => { SP.map.invalidateSize(); SP.map.fitBounds(bb, { padding: [10, 10] }); };
     fit(); setTimeout(fit, 300); SP.fitted = true; }
@@ -1745,12 +1760,14 @@ async function searchSpots() {
     SP.srcNote = got.note; const tSites = (performance.now() - t0) / 1000;
     const sites = got.sites.map(s => ({ ...s, ori: [...(s.ori || [])], dist: distKm(lat, lon, s.lat, s.lon) })).filter(s => s.dist <= r + 0.5);
     SP.landings = sites.filter(s => s.kind === "landing");
-    SP.takeoffs = sites.filter(s => s.kind === "takeoff").sort((a, b) => a.dist - b.dist);
+    SP.takeoffs = sites.filter(s => s.kind === "takeoff").flatMap(splitFaces).sort((a, b) => a.dist - b.dist);
     if (!SP.takeoffs.length) { SP.data = []; renderSpots(); spotMsg("Aucun décollage référencé dans ce rayon. Agrandissez le rayon ou déplacez le centre.", "err"); return; }
     const scored = SP.takeoffs.slice(0, +$("spotN").value || 25);
     spotMsg(`${SP.takeoffs.length} décollages trouvés${got.cached ? " (liste en mémoire)" : ""}. Prévision ${MODEL_NAMES[$("model").value] || ""} pour les ${scored.length} plus proches…`);
     const terrP = loadTerrain(scored).catch(e => console.warn(e));
-    const t1 = performance.now(), arr = await fetchForecasts(scored); await terrP;
+    const locKey = t => `${t.lat.toFixed(4)},${t.lon.toFixed(4)}`, uniq = [...new Map(scored.map(t => [locKey(t), t])).values()];
+    const t1 = performance.now(), arrU = await fetchForecasts(uniq); await terrP;
+    const byLoc = new Map(uniq.map((t, k) => [locKey(t), arrU[k]])), arr = scored.map(t => byLoc.get(locKey(t)));
     SP.balTxt = await balP;
     SP.timing = `Durée : sites ${got.cached ? "en mémoire" : fr(tSites) + " s"}, prévision ${fr((performance.now() - t1) / 1000)} s.`;
     SP.data = scored.map((t, k) => arr[k] && arr[k].hourly ? datasetOf(arr[k]) : null);
@@ -2013,7 +2030,7 @@ function rulesHtml() {
     ["Verdict", "Conforme, Écart, Défavorable"]])}
   <h3>Ensoleillement des pentes</h3>
   <p>La chauffe de chaque déco n'est plus fixe : elle dépend de la pente et de l'orientation réelles du terrain, de la position du soleil à l'heure choisie et de la nébulosité. Elle sert au plafond relief et à la vigueur des thermiques.</p>
-  ${tbl([["Déco référencé : orientation", "celle du déco (FFVL ou base collaborative)"], ["Déco référencé : pente", `mesurée au MNT IGN RGE ALTI sous le déco, dans son axe, sur ${RULES.sun.axis.join(" et ")} m (la plus forte des deux)`],
+  ${tbl([["Déco référencé : orientation", "celle du déco (FFVL ou base collaborative)"], ["Orientations non contiguës (ex. N et SE)", "un déco distinct par face, chacun avec sa pente, son ensoleillement et ses notes"], ["Déco référencé : pente", `mesurée au MNT IGN RGE ALTI sous le déco, dans son axe, sur ${RULES.sun.axis.join(" et ")} m (la plus forte des deux)`],
     [`Axe du déco sans descente mesurée (point en retrait du bord)`, `pente supposée de ${RULES.sun.slope}°`],
     ["Point cliqué : pente et orientation", `mesurées au MNT IGN (grille 3 × 3, points espacés de ${RULES.sun.grid} m)`], [`Pente de moins de ${RULES.sun.minSlope}°`, "traitée comme un terrain plat"],
     ["Sans données IGN (hors France, service indisponible)", `orientations du déco, pente supposée de ${RULES.sun.slope}°`],
