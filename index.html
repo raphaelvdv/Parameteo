@@ -1,0 +1,1718 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Émagramme AROME</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+/* Layout : bandeau source de données, puis diagramme (2/3) + panneau d'analyse (1/3), tableau des niveaux en dessous */
+:root{
+  --paper:#f5f7f4; --surface:#ffffff; --ink:#1b2420; --muted:#5b6862; --rule:#d8ded9;
+  --accent:#0d6a6a; --accent-ink:#ffffff;
+  --iso:#c4813f; --dry:#5c9a5e; --moist:#3a7db0; --mixr:#9a63ad;
+  --temp:#d1332a; --dew:#1b5fc4; --parcel:#1b2420; --ground:#d7d0c2;
+  --cape:rgba(209,51,42,.16); --cin:rgba(27,95,196,.14);
+  --good:#2f7d46; --warn:#b7791f; --bad:#c0392b;
+  --f-display:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"Barlow","Segoe UI",Roboto,Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#111614; --surface:#18201c; --ink:#e4ebe6; --muted:#93a19a; --rule:#2a332e;
+  --accent:#4fb8b0; --accent-ink:#0b1210;
+  --iso:#a8733f; --dry:#64a56a; --moist:#5292c6; --mixr:#b086c4;
+  --temp:#ff6a55; --dew:#62a6ff; --parcel:#e4ebe6; --ground:#2b2823;
+  --cape:rgba(255,106,85,.18); --cin:rgba(98,166,255,.16);
+  --good:#5cc27c; --warn:#e0a948; --bad:#ff7a6b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#111614; --surface:#18201c; --ink:#e4ebe6; --muted:#93a19a; --rule:#2a332e;
+  --accent:#4fb8b0; --accent-ink:#0b1210;
+  --iso:#a8733f; --dry:#64a56a; --moist:#5292c6; --mixr:#b086c4;
+  --temp:#ff6a55; --dew:#62a6ff; --parcel:#e4ebe6; --ground:#2b2823;
+  --cape:rgba(255,106,85,.18); --cin:rgba(98,166,255,.16);
+  --good:#5cc27c; --warn:#e0a948; --bad:#ff7a6b; color-scheme:dark}
+
+*{box-sizing:border-box}
+html{color-scheme:light}
+@media (prefers-color-scheme: dark){html{color-scheme:dark}}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{margin:0 auto;display:grid;gap:18px}
+.wrap>*{width:100%;max-width:1320px;justify-self:center;min-width:0}
+.wrap>#spots{max-width:none}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;font-weight:700;letter-spacing:.01em}
+h1{font-size:30px;line-height:1.1}
+h2{font-size:15px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.mono,.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 24px}
+header.top p{margin:4px 0 0;color:var(--muted);max-width:68ch}
+.badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:12px;padding:4px 10px;border:1px solid var(--rule);border-radius:999px;background:var(--surface);color:var(--muted)}
+.badge.ex{border-color:var(--warn);color:var(--warn)}
+.badge.live{border-color:var(--good);color:var(--good)}
+
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:14px 16px;min-width:0}
+.source{display:grid;gap:12px}
+.row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
+.field{display:grid;gap:3px;min-width:0}
+.field label,.lbl{font-family:var(--f-display);font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+input[type=number],input[type=text],select,textarea{font:inherit;font-family:var(--f-mono);font-size:13px;color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:6px 8px;min-width:0}
+input[type=number]{width:96px}
+textarea{width:100%;min-height:64px;resize:vertical}
+button,.btn{font-family:var(--f-display);font-weight:600;font-size:14px;letter-spacing:.03em;border-radius:4px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);padding:7px 14px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+button.ghost,.btn.ghost{background:transparent;color:var(--accent)}
+button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.note{font-size:13px;color:var(--muted);margin:0;max-width:80ch}
+.msg{font-size:13px;padding:8px 10px;border-radius:4px;border-left:3px solid var(--accent);background:var(--paper);margin:0}
+.msg.err{border-color:var(--bad)}
+.msg.ok{border-color:var(--good)}
+details summary{cursor:pointer;font-family:var(--f-display);font-weight:600;color:var(--accent)}
+.steps{margin:6px 0 0;padding-left:20px;font-size:13px;color:var(--muted)}
+
+.main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
+@media (max-width:980px){.main{grid-template-columns:minmax(0,1fr)}}
+.diagram{padding:10px}
+.dhead{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:4px 6px 10px}
+.dhead .ttl{font-family:var(--f-display);font-weight:700;font-size:18px}
+.dhead .sub{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.hournav{display:flex;gap:6px;align-items:center}
+.hournav button{padding:5px 10px}
+#cv-wrap{position:relative;width:100%}
+canvas#cv{display:block;width:100%;touch-action:pan-y;cursor:crosshair;border-radius:4px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:10px 6px 2px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:22px;height:0;border-top:2px solid}
+.toggles{display:flex;flex-wrap:wrap;gap:6px 14px;padding:4px 6px 0;font-size:13px}
+.toggles label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+
+.side{display:grid;gap:14px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{border:1px solid var(--rule);border-radius:4px;padding:8px 10px;background:var(--paper)}
+.stat .v{font-family:var(--f-mono);font-size:20px;font-weight:500;line-height:1.2}
+.stat .u{font-size:12px;color:var(--muted);margin-left:3px}
+.stat .k{font-family:var(--f-display);font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.pill{display:inline-block;font-family:var(--f-display);font-weight:600;font-size:12px;letter-spacing:.04em;padding:2px 8px;border-radius:999px;border:1px solid currentColor}
+.pill.good{color:var(--good)}.pill.warn{color:var(--warn)}.pill.bad{color:var(--bad)}.pill.mute{color:var(--muted)}
+.verdict{display:grid;gap:6px;font-size:14px}
+.ctrl{display:grid;gap:10px}
+.ctrl .line{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+input[type=range]{flex:1;min-width:120px;accent-color:var(--accent)}
+
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums}
+th{font-family:var(--f-display);font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:12px;color:var(--muted);text-align:right;padding:6px 10px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{text-align:right;padding:4px 10px;border-bottom:1px solid var(--rule);white-space:nowrap}
+tr.hl td{background:var(--paper)}
+footer{font-size:12px;color:var(--muted)}
+footer a{color:var(--accent)}
+.tut{border:2px solid var(--accent);display:grid;gap:10px}
+.tut-top{display:flex;align-items:center;gap:10px}
+.tut-top h2{flex:1;color:var(--accent)}
+.tut h3{font-size:21px;line-height:1.15}
+.tut-body{font-size:14.5px;display:grid;gap:8px}
+.tut-body p{margin:0}
+.tut-list{margin:0;padding-left:20px;display:grid;gap:4px}
+.tut-body ul{margin:0;padding-left:18px;display:grid;gap:4px}
+.caution{font-size:13px;border-left:3px solid var(--warn);padding:6px 10px;background:var(--paper)}
+.tut-nav{display:flex;justify-content:space-between;gap:8px}
+.tut-nav button:disabled{opacity:.4;cursor:default}
+.dots{display:flex;flex-wrap:wrap;gap:6px}
+.dot{width:13px;height:13px;padding:0;border-radius:50%;border:1.5px solid var(--accent);background:transparent}
+.dot.on{background:var(--accent)}
+button.sm{padding:4px 10px;font-size:13px}
+dt[title],.stat .k[title],th[title],.tip{cursor:help;text-decoration:underline dotted;text-underline-offset:3px;text-decoration-color:var(--muted)}
+.stat.wide{grid-column:1/-1;display:grid;gap:6px;justify-items:start}
+.stat .n{font-size:12px;color:var(--muted)}
+.diag{margin:0;font-size:13.5px}
+.spots-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin-top:12px}
+#map{height:clamp(420px,72vh,820px);border:1px solid var(--rule);border-radius:4px;background:var(--paper);display:grid;place-items:center;color:var(--muted);font-size:13px;text-align:center;padding:0}
+.spots-list{max-height:560px;overflow:auto;border:1px solid var(--rule);border-radius:4px}
+#spotTbl th,#spotTbl td{text-align:left;vertical-align:top}
+#spotTbl td.r,#spotTbl th.r{text-align:right}
+#spotTbl tbody tr{cursor:pointer}
+#spotTbl tbody tr:hover td{background:var(--paper)}
+#spotTbl .nm{font-family:var(--f-body);font-weight:600;white-space:normal;min-width:140px}
+#spotTbl .sub{font-family:var(--f-body);font-size:12px;color:var(--muted);white-space:normal}
+.score{display:inline-grid;place-items:center;min-width:36px;height:26px;padding:0 6px;border-radius:13px;font-family:var(--f-mono);font-weight:600;color:var(--surface)}
+.score.good{background:var(--good)}.score.warn{background:var(--warn)}.score.bad{background:var(--bad)}.score.mute{background:var(--muted)}
+.pin{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--surface);font:600 12px var(--f-mono);border:2px solid var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.pin.good{background:var(--good)}.pin.warn{background:var(--warn)}.pin.bad{background:var(--bad)}.pin.mute{background:var(--muted)}
+.pin2{display:flex;border-radius:13px;overflow:hidden;border:2px solid var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.45);font:600 11px var(--f-mono);width:max-content}
+.pin2 span{padding:3px 6px;color:var(--surface)}
+.pin2 .good{background:var(--good)}.pin2 .warn{background:var(--warn)}.pin2 .bad{background:var(--bad)}.pin2 .mute{background:var(--muted)}
+.bal{display:flex;align-items:center;gap:2px;font:600 10px var(--f-mono);background:var(--surface);border:1.5px solid currentColor;border-radius:10px;padding:1px 6px 1px 2px;width:max-content;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.bal svg{width:16px;height:16px;display:block}
+.bal.good{color:var(--good)}.bal.warn{color:var(--warn)}.bal.bad{color:var(--bad)}.bal.mute{color:var(--muted)}
+.why .info{color:var(--muted)}
+.ffvl{font-size:12.5px;display:grid;gap:3px;margin:4px 0 2px}
+.ffvl .r{color:var(--muted)}
+.why-h{font-family:var(--f-display);font-weight:600;font-size:13px;margin-top:6px}
+.pin.land{width:20px;height:20px;border-radius:4px;background:var(--dew);font-size:10px}
+.pin.ctr{width:14px;height:14px;background:var(--ink)}
+.leaflet-div-icon.clear{background:none;border:none}
+.leaflet-container{font-family:var(--f-body)}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--surface);color:var(--ink)}
+.leaflet-container a{color:var(--accent)}
+.pop h4{margin:0 0 4px;font-family:var(--f-display);font-size:16px}
+.pop .meta{font-family:var(--f-mono);font-size:12px;color:var(--muted);margin-bottom:6px}
+.why{margin:6px 0;padding-left:16px;display:grid;gap:2px;font-size:12.5px}
+.why .good{color:var(--good)}.why .warn{color:var(--warn)}.why .bad{color:var(--bad)}
+.gloss{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:18px 28px;margin-top:10px}
+.gloss h3{font-size:14px;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:6px}
+.gloss dl{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;align-items:baseline}
+.gloss dt{font-family:var(--f-mono);font-weight:500;white-space:nowrap}
+.gloss dd{margin:0;color:var(--muted);font-size:13.5px}
+.gloss .sw{display:inline-block;width:22px;height:0;border-top:2px solid;vertical-align:middle}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Émagramme AROME</h1>
+      <p>Émagramme incliné à 45° (type 761) avec ascendance de particule, CAPE/CIN, base des cumulus et plafond thermique. La prévision est téléchargée directement depuis Open-Meteo. Survolez le diagramme pour lire chaque niveau.</p>
+    </div>
+    <div class="row" style="align-items:center"><button id="readBtn" type="button">Lecture commentée</button><button id="tutBtn" type="button" class="ghost">Apprendre à lire un émagramme</button><span id="srcBadge" class="badge ex">Exemple fictif</span></div>
+  </header>
+
+  <section class="panel source" aria-labelledby="src-h">
+    <h2 id="src-h">Source du sondage</h2>
+    <div class="row">
+      <div class="field"><label for="city">Rechercher une commune</label><input id="city" type="text" placeholder="ex. Saint-Hilaire-du-Touvet" style="width:240px"></div>
+      <button id="cityBtn" type="button" class="ghost">Chercher</button>
+      <button id="geoBtn" type="button" class="ghost">Ma position</button>
+    </div>
+    <div class="row">
+      <div class="field"><label for="preset">Site</label>
+        <select id="preset">
+          <option value="">Coordonnées libres</option>
+          <option value="45.19,5.72">Grenoble</option>
+          <option value="45.31,5.87">Dent de Crolles / Saint-Hilaire</option>
+          <option value="45.90,6.13">Annecy</option>
+          <option value="45.92,6.87">Chamonix</option>
+          <option value="43.92,6.51">Saint-André-les-Alpes</option>
+          <option value="44.10,3.08">Millau</option>
+          <option value="45.76,4.84">Lyon</option>
+          <option value="43.60,1.44">Toulouse</option>
+          <option value="48.86,2.35">Paris</option>
+          <option value="47.22,-1.55">Nantes</option>
+          <option value="48.58,7.75">Strasbourg</option>
+        </select></div>
+      <div class="field"><label for="lat">Latitude</label><input id="lat" type="number" step="0.01" value="45.19"></div>
+      <div class="field"><label for="lon">Longitude</label><input id="lon" type="number" step="0.01" value="5.72"></div>
+      <div class="field"><label for="model">Modèle</label>
+        <select id="model">
+          <option value="meteofrance_arome_france">AROME France (1,3 km)</option>
+          <option value="meteofrance_arpege_europe">ARPEGE Europe</option>
+          <option value="meteofrance_seamless">Météo-France combiné</option>
+        </select></div>
+      <button id="fetchBtn" type="button">Récupérer le sondage</button>
+      <a id="apiLink" class="btn ghost" href="#" target="_blank" rel="noopener">Voir le JSON ↗</a>
+    </div>
+    <p id="fetchMsg" class="msg" hidden></p>
+    <details id="pasteBox">
+      <summary>Importer un sondage (fichier ou copier-coller)</summary>
+      <ol class="steps">
+        <li>Hors connexion, ou pour un autre sondage : collez une réponse JSON Open-Meteo (« Voir le JSON ↗ »).</li>
+        <li>Sélectionnez tout (Ctrl/Cmd + A), copiez, puis collez ici. Le chargement est automatique.</li>
+        <li>Formats acceptés aussi : texte Université du Wyoming, ou lignes <span class="mono">p z T Td dir kt</span>.</li>
+      </ol>
+      <div class="row" style="margin-top:8px">
+        <textarea id="pasteArea" spellcheck="false" placeholder='{"latitude":45.19,"hourly":{"time":[...],"temperature_850hPa":[...]}}  ou  850 1500 17.0 11.0 225 16'></textarea>
+        <button id="pasteBtn" type="button">Charger</button>
+        <input id="fileIn" type="file" accept=".json,.txt,.csv,text/plain,application/json">
+      </div>
+    </details>
+  </section>
+
+  <section class="panel" id="spots" aria-labelledby="spots-h">
+    <h2 id="spots-h">Sites de vol autour du point</h2>
+    <div class="row" style="margin-top:10px">
+      <div class="field"><label for="radius">Rayon</label><select id="radius"><option value="10">10 km</option><option value="25" selected>25 km</option><option value="40">40 km</option><option value="60">60 km</option></select></div>
+      <div class="field"><label for="spotHour">Jour et heure</label><select id="spotHour"><option value="">—</option></select></div>
+      <div class="field"><label for="spotDT">Chauffe des pentes (°C)</label><input id="spotDT" type="number" step="0.5" min="0" max="8" value="3"></div>
+      <div class="field"><label for="spotN" title="Moins de sites notés = prévision plus rapide">Sites notés</label><select id="spotN"><option value="15">15 plus proches</option><option value="25" selected>25 plus proches</option><option value="40">40 plus proches</option></select></div>
+      <button id="spotsBtn" type="button">Chercher les sites et les noter</button>
+      <button id="spotsRefresh" type="button" class="ghost" title="Ignore la liste gardée en mémoire et la retélécharge">Mettre à jour la liste des sites</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label for="balOn" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="balOn" checked> Balises : vent mesuré (FFVL, Pioupiou)</label>
+      <label for="osmOn" style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Ajoute les sites d'OpenStreetMap et ParaglidingEarth absents de la liste FFVL (recherche plus lente)"><input type="checkbox" id="osmOn"> Compléter avec OpenStreetMap et ParaglidingEarth</label>
+      <button id="balBtn" type="button" class="ghost">Actualiser les balises</button>
+    </div>
+    <p id="spotsMsg" class="msg" hidden></p>
+    <div class="spots-grid">
+      <div id="map">La carte s'affiche après la recherche.<br>Centre : les coordonnées de la source du sondage.</div>
+      <div class="spots-list"><table id="spotTbl"><thead><tr><th class="r" title="Note décollage /100 : vent, axe, rafales, pluie, nuage, orage">Déco</th><th class="r" title="Note thermique /100 : plafond, vigueur, soleil, cumulus, vent en altitude, orage">Therm.</th><th>Décollage</th><th class="r">Alt.</th><th class="r">Dist.</th><th title="Vent prévu à l'altitude du décollage">Vent déco</th><th class="r" title="Plafond thermique retenu">Plafond</th></tr></thead>
+        <tbody><tr><td colspan="7" class="sub">Lancez la recherche pour lister les décollages, du mieux noté au moins bien noté.</td></tr></tbody></table></div>
+    </div>
+    <p class="note" style="margin-top:10px">Sites et balises : données officielles de la FFVL (open data data.gouv.fr, terrains mis à jour chaque jour, relevés toutes les 5 min), complétées si vous le cochez par OpenStreetMap et ParaglidingEarth. Vérifiez toujours la fiche du site et les consignes du club local. Deux notes sur 100, indicatives, d'après la prévision du modèle. <b>Déco</b> : vent au décollage et dans l'axe, rafales, pluie, nuage au déco, orage. <b>Thermique</b> : hauteur du plafond au-dessus du déco, vigueur des thermiques, soleil, cumulus, vent dans la couche, orage. Sur la carte, la pastille montre la note déco à gauche et la note thermique à droite ; les flèches sont les balises (vers où souffle le vent, vitesse moyenne/rafale en km/h). Quand l'heure choisie est à moins de 1 h 30 de maintenant, le vent d'une balise fraîche (moins d'1 h), proche du déco (5 km, 400 m de dénivelé) remplace la prévision dans la note déco. La liste est triée par la moyenne des deux, un déco noté sous 40 passant en fin de liste.</p>
+  </section>
+
+  <div class="main">
+    <section class="panel diagram" aria-label="Émagramme">
+      <div class="dhead">
+        <div>
+          <div class="ttl" id="dTitle">Exemple — après-midi orageux</div>
+          <div class="sub" id="dSub">Profil fictif pour démonstration</div>
+        </div>
+        <div class="hournav">
+          <button class="ghost" id="prevH" type="button" aria-label="Heure précédente">◀</button>
+          <select id="hourSel" aria-label="Échéance"></select>
+          <button class="ghost" id="nextH" type="button" aria-label="Heure suivante">▶</button>
+          <select id="pTop" aria-label="Sommet du diagramme">
+            <option value="100">→ 100 hPa</option>
+            <option value="200">→ 200 hPa</option>
+            <option value="300">→ 300 hPa</option>
+            <option value="500">→ 500 hPa</option>
+            <option value="600">→ 600 hPa</option>
+            <option value="700">→ 700 hPa</option>
+          </select>
+        </div>
+      </div>
+      <div id="cv-wrap"><canvas id="cv" role="img" aria-label="Émagramme : courbes d'état et de rosée, ascendance de la particule"></canvas></div>
+      <div class="legend">
+        <span><i style="border-color:var(--temp);border-top-width:3px"></i>Température</span>
+        <span><i style="border-color:var(--dew);border-top-width:3px"></i>Point de rosée</span>
+        <span><i style="border-color:var(--parcel);border-top-style:dashed"></i>Particule</span>
+        <span><i style="border-color:var(--iso)"></i>Isothermes</span>
+        <span><i style="border-color:var(--dry)"></i>Adiabatiques sèches</span>
+        <span><i style="border-color:var(--moist);border-top-style:dashed"></i>Pseudo-adiabatiques</span>
+        <span><i style="border-color:var(--mixr);border-top-style:dotted"></i>Rapport de mélange (g/kg)</span>
+      </div>
+      <div class="toggles">
+        <label><input type="checkbox" id="tDry" checked> Adiab. sèches</label>
+        <label><input type="checkbox" id="tMoist" checked> Pseudo-adiab.</label>
+        <label><input type="checkbox" id="tMix" checked> Rapport de mélange</label>
+        <label><input type="checkbox" id="tArea" checked> Aires CAPE/CIN</label>
+        <label><input type="checkbox" id="tWind" checked> Vent</label>
+        <button class="ghost sm" id="glossBtn" type="button">Lexique des symboles ↓</button>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel tut" id="tut" hidden aria-live="polite" aria-labelledby="tutT">
+        <div class="tut-top"><h2 id="tutH">Didacticiel</h2><span class="mono" id="tutN"></span><button class="ghost sm" id="tutX" type="button">Quitter</button></div>
+        <div class="dots" id="tutDots"></div>
+        <h3 id="tutT"></h3>
+        <div class="tut-body" id="tutB"></div>
+        <div class="row" id="tutA"></div>
+        <div class="tut-nav"><button class="ghost" id="tutP" type="button">← Précédent</button><button id="tutNx" type="button">Suivant →</button></div>
+      </section>
+      <section class="panel" aria-labelledby="cur-h">
+        <h2 id="cur-h">Au curseur</h2>
+        <dl class="kv" id="readout" style="margin-top:8px"></dl>
+      </section>
+
+      <section class="panel ctrl" aria-labelledby="par-h">
+        <h2 id="par-h">Particule</h2>
+        <div class="field"><label for="ptype">Origine</label>
+          <select id="ptype">
+            <option value="sfc">Surface</option>
+            <option value="ml">Couche mélangée (50 hPa)</option>
+            <option value="mu">Plus instable (300 hPa)</option>
+          </select></div>
+        <div class="field"><label for="tx" title="Tx : température maximale prévue au sol, départ de la bulle">T au sol (Tx prévue) <span class="mono" id="txV"></span></label>
+          <div class="line"><input id="tx" type="range" min="-30" max="45" step="0.5"><button class="ghost" id="resetP" type="button">Réinit.</button></div></div>
+        <div class="field"><label for="tdx" title="Td : point de rosée au sol">Td au sol <span class="mono" id="tdxV"></span></label>
+          <input id="tdx" type="range" min="-40" max="30" step="0.5"></div>
+        <label for="rOn" style="display:flex;gap:8px;align-items:center;cursor:pointer;font-weight:600"><input type="checkbox" id="rOn"> Comparer avec les thermiques de relief</label>
+        <div class="line"><div class="field"><label for="rZ">Altitude de départ (m)</label><input id="rZ" type="number" step="50" min="0" max="5000"></div>
+          <div class="field"><label for="rDT">Chauffe de la pente (°C)</label><input id="rDT" type="number" step="0.5" min="-2" max="12"></div></div>
+        <p class="msg" id="rNote" hidden></p>
+        <p class="note">Les curseurs modifient la particule et le plafond, pas le profil. En montagne, sous une inversion de vallée, cochez la comparaison relief : un second plafond est calculé depuis la pente (air libre + chauffe du rocher, souvent +2 à +4 °C) et l'application indique lequel retenir.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="ana-h">
+        <h2 id="ana-h">Analyse</h2>
+        <div class="verdict" id="verdict" style="margin:8px 0 12px"></div>
+        <div class="stats" id="stats"></div>
+        <dl class="kv" id="idx" style="margin-top:12px"></dl>
+      </section>
+    </aside>
+  </div>
+
+  <section class="panel" id="gloss" aria-labelledby="gloss-h">
+    <h2 id="gloss-h">Lexique des symboles</h2>
+    <div class="gloss">
+      <div><h3>Températures et humidité</h3><dl>
+        <dt>T</dt><dd>Température de l'air au niveau considéré, en °C. Courbe rouge (courbe d'état).</dd>
+        <dt>Td</dt><dd>Point de rosée : température à laquelle il faudrait refroidir l'air pour qu'il soit saturé. Courbe bleue. Plus T–Td est petit, plus l'air est humide ; 0 = nuage ou brouillard.</dd>
+        <dt>Tx</dt><dd>Température maximale prévue au sol dans la journée. Point de départ de la bulle pour calculer le plafond.</dd>
+        <dt>HR</dt><dd>Humidité relative, en %. 100 % = saturation.</dd>
+        <dt>θ</dt><dd>« Thêta », température potentielle : température qu'aurait l'air ramené à 1000 hPa sans échange de chaleur. Constante le long d'une adiabatique sèche. Si θ augmente avec l'altitude, l'air est stable.</dd>
+        <dt>θ'w</dt><dd>« Thêta prime w », température pseudo-adiabatique potentielle du thermomètre mouillé. Constante le long d'une pseudo-adiabatique ; elle caractérise une masse d'air (plus elle est haute, plus l'air est chaud et humide).</dd>
+        <dt>r</dt><dd>Rapport de mélange : grammes de vapeur d'eau par kilo d'air sec.</dd>
+        <dt>rs</dt><dd>Rapport de mélange à saturation : le maximum que l'air peut contenir à sa température.</dd>
+        <dt>Eau précip.</dt><dd>Eau précipitable, en mm : hauteur d'eau obtenue si toute la vapeur de la colonne d'air tombait.</dd>
+      </dl></div>
+      <div><h3>Pression, altitude, vent</h3><dl>
+        <dt>p, hPa</dt><dd>Pression en hectopascals. Environ 1013 au niveau de la mer, 850 ≈ 1 500 m, 700 ≈ 3 000 m, 500 ≈ 5 500 m, 300 ≈ 9 000 m.</dd>
+        <dt>Alt.</dt><dd>Altitude au-dessus de la mer, en m (géopotentiel du modèle).</dd>
+        <dt>Sol modèle</dt><dd>Altitude du relief dans le modèle. AROME lisse le terrain sur une maille de 1,3 km : elle peut différer du lieu réel.</dd>
+        <dt>Gradient</dt><dd>Baisse de température avec l'altitude, en °C / 100 m. Négatif = inversion.</dd>
+        <dt>kt</dt><dd>Nœud : 1 kt ≈ 1,85 km/h.</dd>
+        <dt>Barbule</dt><dd>Symbole du vent : la hampe pointe d'où vient le vent. Demi-barbe 5 kt, barbe 10 kt, fanion 50 kt. Un rond = vent calme.</dd>
+        <dt>Direction</dt><dd>En degrés, d'où vient le vent : 0° nord, 90° est, 180° sud, 270° ouest.</dd>
+      </dl></div>
+      <div><h3>Lignes du diagramme</h3><dl>
+        <dt><span class="sw" style="border-color:var(--temp);border-top-width:3px"></span></dt><dd>Courbe d'état : température du sondage.</dd>
+        <dt><span class="sw" style="border-color:var(--dew);border-top-width:3px"></span></dt><dd>Courbe du point de rosée.</dd>
+        <dt><span class="sw" style="border-color:var(--parcel);border-top-style:dashed"></span></dt><dd>Particule : trajet de la bulle soulevée (sèche puis saturée).</dd>
+        <dt><span class="sw" style="border-color:var(--iso)"></span></dt><dd>Isotherme : même température, inclinée à 45°.</dd>
+        <dt><span class="sw" style="border-color:var(--dry)"></span></dt><dd>Adiabatique sèche : air non saturé, −1 °C / 100 m.</dd>
+        <dt><span class="sw" style="border-color:var(--moist);border-top-style:dashed"></span></dt><dd>Pseudo-adiabatique : air saturé, environ −0,4 à −0,7 °C / 100 m en basses couches.</dd>
+        <dt><span class="sw" style="border-color:var(--mixr);border-top-style:dotted"></span></dt><dd>Rapport de mélange constant (chiffres en g/kg).</dd>
+        <dt><span class="sw" style="border-color:var(--accent);border-top-style:dashed;border-top-width:3px"></span></dt><dd>Adiabatique du thermique de relief, depuis la pente jusqu'au plafond.</dd>
+      </dl></div>
+      <div><h3>Niveaux remarquables</h3><dl>
+        <dt>NCA</dt><dd>Niveau de condensation par ascendance : la bulle devient saturée. Base des cumulus.</dd>
+        <dt>NCL</dt><dd>Niveau de convection libre : au-dessus, la bulle est plus chaude que l'air ambiant et monte seule.</dd>
+        <dt>NE</dt><dd>Niveau d'équilibre : la bulle redevient plus froide. Sommet probable des cumulonimbus.</dd>
+        <dt>Plafond</dt><dd>Altitude où l'adiabatique sèche partie de la Tx (ou de la pente) recoupe la courbe d'état. Si le NCA est atteint avant, le plafond est la base des cumulus.</dd>
+        <dt>Inversion</dt><dd>Couche où la température augmente avec l'altitude. Elle fait couvercle aux thermiques et aux nuages.</dd>
+        <dt>Iso 0 °C</dt><dd>Altitude où la température passe sous 0 °C : limite pluie/neige, givrage.</dd>
+        <dt>Tropopause</dt><dd>Haut de la troposphère (9 à 13 km), couche très stable : plafond des orages.</dd>
+      </dl></div>
+      <div><h3>Énergie et indices d'orage</h3><dl>
+        <dt>CAPE</dt><dd>Énergie convective disponible, en J/kg (surface rouge). &lt; 300 faible, 300–1 000 modérée, 1 000–2 500 forte, &gt; 2 500 extrême.</dd>
+        <dt>CIN</dt><dd>Inhibition convective, en J/kg négatifs (surface bleue) : énergie à fournir pour atteindre le NCL. Sous −100, verrou fort.</dd>
+        <dt>LI</dt><dd>Lifted Index : T de l'air à 500 hPa moins T de la bulle. Négatif = instable (&lt; −3 instable, &lt; −6 très instable).</dd>
+        <dt>K</dt><dd>Indice K (chaleur et humidité entre 850 et 500 hPa). &lt; 20 orages peu probables, 20–30 isolés, 30–35 dispersés, &gt; 35 nombreux.</dd>
+        <dt>TT</dt><dd>Total Totals. Au-delà d'environ 50, orages possibles ; au-delà de 55, orages forts.</dd>
+        <dt>Cisaillement</dt><dd>Écart de vent entre le sol et 6 km, en kt. &lt; 20 orages désorganisés, 20–35 multicellulaires, &gt; 35 organisés.</dd>
+      </dl></div>
+      <div><h3>Réglages de la particule</h3><dl>
+        <dt>Surface</dt><dd>La bulle part du sol avec la Tx et le Td au sol.</dd>
+        <dt>Mélangée</dt><dd>Moyenne des 50 premiers hPa (environ 500 m) : plus représentatif l'après-midi.</dd>
+        <dt>Plus instable</dt><dd>Niveau le plus chaud et humide des 300 premiers hPa : utile pour les orages qui partent en altitude.</dd>
+        <dt>Relief</dt><dd>Second calcul de plafond, depuis une pente à l'altitude choisie, comparé au plafond sol.</dd>
+        <dt>Brassée</dt><dd>« Couche brassée » : les thermiques de vallée dépassent la pente ; le plafond sol est retenu.</dd>
+        <dt>Couvercle</dt><dd>« Couvercle sous les crêtes » : la vallée plafonne sous la pente ; seules les pentes au-dessus portent, le plafond relief est retenu.</dd>
+        <dt>Chauffe</dt><dd>Surchauffe de l'air contre la pente au soleil, en °C. +1 à +2 en hiver, +3 à +4 en été sur roche bien exposée.</dd>
+      </dl></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="tab-h">
+    <h2 id="tab-h">Niveaux du sondage</h2>
+    <div class="tablewrap" style="margin-top:8px">
+      <table id="tbl"><thead><tr><th title="Pression">p (hPa)</th><th title="Altitude au-dessus de la mer">Alt. (m)</th><th title="Température de l'air">T (°C)</th><th title="Point de rosée">Td (°C)</th><th title="Humidité relative">HR (%)</th><th title="Température potentielle">θ (°C)</th><th title="Température pseudo-adiabatique potentielle du thermomètre mouillé">θ'w (°C)</th><th title="Rapport de mélange : g de vapeur par kg d'air sec">r (g/kg)</th><th title="Direction d'où vient le vent, vitesse en nœuds">Vent</th></tr></thead><tbody></tbody></table>
+    </div>
+  </section>
+
+  <footer>Données prévues : Météo-France AROME / ARPEGE via <a href="https://open-meteo.com/en/docs/meteofrance-api" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0). Altitudes = géopotentiel du modèle. Vent en nœuds. Calculs : pseudo-adiabatique intégrée (RK4), NCA de Bolton, CAPE en température virtuelle.</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+(() => {
+"use strict";
+// ---------- Constantes et thermodynamique ----------
+const KAPPA = 0.2857, RD = 287.04, CPD = 1005.7, LV = 2.501e6, EPS = 0.622, G = 9.80665;
+const es = T => 6.112 * Math.exp(17.67 * T / (T + 243.5));               // hPa
+const mixr = (T, p) => { const e = es(T); return 622 * e / (p - e); };       // g/kg (saturant à T)
+const tdFromE = e => { const l = Math.log(e / 6.112); return 243.5 * l / (17.67 - l); };
+const tdFromR = (r, p) => tdFromE(r * p / (622 + r));
+const theta = (T, p) => (T + 273.15) * Math.pow(1000 / p, KAPPA) - 273.15;
+const tFromTheta = (th, p) => (th + 273.15) * Math.pow(p / 1000, KAPPA) - 273.15;
+const virt = (T, r) => (T + 273.15) * (1 + r / 1000 / EPS) / (1 + r / 1000) - 273.15;
+const rh = (T, Td) => 100 * es(Td) / es(T);
+function moistDTdp(T, p) {
+  const Tk = T + 273.15, rs = mixr(T, p) / 1000;
+  return (RD * Tk + LV * rs) / (p * (CPD + LV * LV * rs * EPS / (RD * Tk * Tk)));
+}
+function moistStep(T, p, p2) {
+  const h = p2 - p;
+  const k1 = moistDTdp(T, p), k2 = moistDTdp(T + h / 2 * k1, p + h / 2),
+        k3 = moistDTdp(T + h / 2 * k2, p + h / 2), k4 = moistDTdp(T + h * k3, p + h);
+  return T + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4);
+}
+function lclOf(p0, T0, Td0) {
+  const Tk = T0 + 273.15, Tdk = Math.min(Td0, T0) + 273.15;
+  const Tl = 1 / (1 / (Tdk - 56) + Math.log(Tk / Tdk) / 800) + 56;
+  return { p: p0 * Math.pow(Tl / Tk, 1 / KAPPA), T: Tl - 273.15 };
+}
+// θ'w : température pseudo-adiabatique potentielle (redescente à 1000 hPa)
+function thetaW(T, p, Td) {
+  const l = lclOf(p, T, Td); let t = l.T, pp = l.p;
+  const n = Math.max(1, Math.ceil(Math.abs(1000 - pp) / 10)), h = (1000 - pp) / n;
+  for (let i = 0; i < n; i++) { t = moistStep(t, pp, pp + h); pp += h; }
+  return t;
+}
+const thetaE = (T, p, Td) => { const r = mixr(Td, p), l = lclOf(p, T, Td);
+  return (theta(T, p) + 273.15) * Math.exp(LV * r / 1000 / (CPD * (l.T + 273.15))) - 273.15; };
+
+// ---------- Exemple fictif ----------
+const EXAMPLE = { title: "Exemple — après-midi orageux", sub: "Profil fictif pour démonstration, pas une prévision", live: false,
+  psfc: 985, zsfc: 230,
+  levels: [
+    [985, 230, 29.0, 16.0, 200, 6], [950, 560, 25.6, 14.8, 210, 9], [925, 790, 23.2, 14.0, 215, 11],
+    [900, 1020, 20.9, 13.2, 220, 13], [850, 1500, 13.3, 10.8, 225, 15], [800, 2010, 10.0, 8.2, 230, 17],
+    [700, 3120, 5.6, -0.8, 235, 22], [600, 4350, -2.4, -11.5, 240, 27], [500, 5780, -11.6, -23.0, 240, 34],
+    [400, 7450, -23.3, -35.5, 245, 41], [300, 9480, -38.4, -49.5, 250, 52], [250, 10720, -47.4, -57.5, 250, 58],
+    [200, 12150, -55.0, -66.0, 255, 55], [150, 13950, -57.2, -72.0, 255, 44], [100, 16500, -63.0, -80.0, 260, 30]
+  ].map(([p, z, T, Td, dir, spd]) => ({ p, z, T, Td, dir, spd })) };
+
+// ---------- État ----------
+const $ = id => document.getElementById(id);
+const S = { place: "", snd: null, dataset: null, hourIdx: 0, ptype: "sfc", tx: null, tdx: null, pTop: 100, cursorP: null, an: null, geom: null };
+function loadRelief() { try { const r = JSON.parse(localStorage.getItem("emagramme-relief") || "null"); if (r && isFinite(r.z) && isFinite(r.dT)) return { on: !!r.on, z: +r.z, dT: +r.dT }; } catch {} return { on: false, z: 1800, dT: 3 }; }
+S.relief = loadRelief();
+const LEVELS = [1000, 975, 950, 925, 900, 850, 800, 700, 600, 500, 400, 300, 250, 200, 150, 100];
+
+// ---------- Préparation du sondage ----------
+function prepare(snd) {
+  let L = snd.levels.filter(l => l && isFinite(l.p) && isFinite(l.T)).map(l => ({ ...l }));
+  L.sort((a, b) => b.p - a.p);
+  L = L.filter((l, i) => i === 0 || l.p < L[i - 1].p);
+  L.forEach(l => { if (!isFinite(l.Td) || l.Td === null) l.Td = null; else if (l.Td > l.T) l.Td = l.T; });
+  // altitudes manquantes : hypsométrie
+  if (!isFinite(L[0].z) || L[0].z === null) L[0].z = isFinite(snd.zsfc) ? snd.zsfc : 0;
+  for (let i = 1; i < L.length; i++) if (!isFinite(L[i].z) || L[i].z === null) {
+    const a = L[i - 1], b = L[i];
+    const tva = virt(a.T, a.Td !== null ? mixr(a.Td, a.p) : 0) + 273.15, tvb = virt(b.T, b.Td !== null ? mixr(b.Td, b.p) : 0) + 273.15;
+    b.z = a.z + RD * (tva + tvb) / 2 / G * Math.log(a.p / b.p);
+  }
+  snd.levels = L; snd.psfc = L[0].p; snd.zsfc = L[0].z;
+  const ser = k => L.filter(l => l[k] !== null && l[k] !== undefined && isFinite(l[k])).map(l => [Math.log(l.p), l[k]]);
+  snd.s = { T: ser("T"), Td: ser("Td"), z: ser("z") };
+  const W = L.filter(l => isFinite(l.dir) && isFinite(l.spd) && l.dir !== null && l.spd !== null);
+  snd.wind = W.map(l => ({ p: l.p, z: l.z, dir: l.dir, spd: l.spd,
+    u: -l.spd * Math.sin(l.dir * Math.PI / 180), v: -l.spd * Math.cos(l.dir * Math.PI / 180) }));
+  snd.pmin = L[L.length - 1].p;
+  return snd;
+}
+function interpS(s, p) {
+  if (!s.length) return null; const x = Math.log(p);
+  if (x > s[0][0] + 1e-9 || x < s[s.length - 1][0] - 1e-9) return null;
+  for (let i = 0; i < s.length - 1; i++) {
+    const [x0, y0] = s[i], [x1, y1] = s[i + 1];
+    if (x <= x0 && x >= x1) return x0 === x1 ? y0 : y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+  }
+  return s[s.length - 1][1];
+}
+const envT = p => interpS(S.snd.s.T, p), envTd = p => interpS(S.snd.s.Td, p), envZ = p => interpS(S.snd.s.z, p);
+function windAtZ(z) {
+  const W = S.snd.wind; if (W.length < 2 || z < W[0].z || z > W[W.length - 1].z) return null;
+  for (let i = 0; i < W.length - 1; i++) if (z >= W[i].z && z <= W[i + 1].z) {
+    const f = (z - W[i].z) / (W[i + 1].z - W[i].z || 1);
+    return { u: W[i].u + f * (W[i + 1].u - W[i].u), v: W[i].v + f * (W[i + 1].v - W[i].v) };
+  } return null;
+}
+function windAtP(p) {
+  const W = S.snd.wind; if (!W.length) return null;
+  let best = null, d = 1e9; W.forEach(w => { const dd = Math.abs(Math.log(w.p / p)); if (dd < d) { d = dd; best = w; } });
+  return d < 0.06 ? best : null;
+}
+
+// ---------- Analyse ----------
+function liftParcel(p0, T0, Td0, pmin) {
+  const th = theta(T0, p0), r = mixr(Math.min(Td0, T0), p0), lcl = lclOf(p0, T0, Td0);
+  const pts = []; let Tm = null, prev = null;
+  const step = 2, ps = [p0]; for (let p = Math.floor(p0 / step) * step; p >= pmin; p -= step) if (p < p0) ps.push(p);
+  for (const p of ps) {
+    if (p >= lcl.p) { const T = tFromTheta(th, p); pts.push({ p, T, Tv: virt(T, r) }); }
+    else {
+      if (Tm === null) { Tm = tFromTheta(th, lcl.p); prev = lcl.p; }
+      Tm = moistStep(Tm, prev, p); prev = p; pts.push({ p, T: Tm, Tv: virt(Tm, mixr(Tm, p)) });
+    }
+  }
+  return { pts, lcl, r };
+}
+function pAtZ(z) { const L = S.snd.levels;
+  for (let i = 0; i < L.length - 1; i++) if (z >= L[i].z && z <= L[i + 1].z) { const f = (z - L[i].z) / (L[i + 1].z - L[i].z || 1); return Math.exp(Math.log(L[i].p) + f * (Math.log(L[i + 1].p) - Math.log(L[i].p))); }
+  return null; }
+function thermalFrom(p0, T0, Td0) { const th = theta(T0, p0); let ceil = null, prev = null, pp = null;
+  for (let p = p0 - 1; p >= S.snd.pmin; p -= 1) { const Te = envT(p); if (Te === null) break; const d = tFromTheta(th, p) - Te;
+    if (d <= 0) { ceil = prev !== null && prev > 0 ? crossP(pp, p, prev, d) : p; break; } prev = d; pp = p; }
+  const l = lclOf(p0, T0, Math.min(Td0, T0)); return { ceil, lcl: l.p, cu: ceil !== null && l.p > ceil }; }
+function crossP(a, b, fa, fb) { const t = fa / (fa - fb); return Math.exp(Math.log(a) + t * (Math.log(b) - Math.log(a))); }
+
+function analyze() {
+  const snd = S.snd, L = snd.levels, p0s = snd.psfc;
+  const sfcT = S.tx ?? L[0].T, sfcTd = Math.min(S.tdx ?? (L[0].Td ?? L[0].T - 10), sfcT);
+  let p0 = p0s, T0 = sfcT, Td0 = sfcTd;
+  if (S.ptype === "ml") {
+    let thS = 0, rS = 0, n = 0;
+    for (let p = p0s; p >= p0s - 50; p -= 2) { const T = p === p0s ? sfcT : envT(p), Td = p === p0s ? sfcTd : envTd(p);
+      if (T === null || Td === null) continue; thS += theta(T, p); rS += mixr(Td, p); n++; }
+    if (n) { T0 = tFromTheta(thS / n, p0s); Td0 = Math.min(tdFromR(rS / n, p0s), T0); }
+  } else if (S.ptype === "mu") {
+    let best = -1e9;
+    for (let p = p0s; p >= Math.max(p0s - 300, snd.pmin); p -= 5) {
+      const T = p === p0s ? sfcT : envT(p), Td = p === p0s ? sfcTd : envTd(p);
+      if (T === null || Td === null) continue; const te = thetaE(T, p, Td);
+      if (te > best) { best = te; p0 = p; T0 = T; Td0 = Td; }
+    }
+  }
+  const par = liftParcel(p0, T0, Td0, snd.pmin);
+  const b = par.pts.map(pt => { const Te = envT(pt.p), Tde = envTd(pt.p); if (Te === null) return null;
+    return pt.Tv - virt(Te, Tde !== null ? mixr(Tde, pt.p) : 0); });
+  // NCL (LFC) et NE (EL)
+  let lfcI = -1;
+  for (let i = 0; i < par.pts.length; i++) if (b[i] !== null && b[i] > 0 && par.pts[i].p <= par.lcl.p + 1e-6) { lfcI = i; break; }
+  let lfc = null, el = null, cape = 0, cin = 0, elI = -1;
+  if (lfcI >= 0) {
+    lfc = lfcI > 0 && b[lfcI - 1] !== null && b[lfcI - 1] <= 0 ? crossP(par.pts[lfcI - 1].p, par.pts[lfcI].p, b[lfcI - 1], b[lfcI]) : Math.min(par.pts[lfcI].p, par.lcl.p);
+    for (let i = par.pts.length - 1; i >= lfcI; i--) if (b[i] !== null && b[i] > 0) { elI = i; break; }
+    el = elI < par.pts.length - 1 && b[elI + 1] !== null ? crossP(par.pts[elI].p, par.pts[elI + 1].p, b[elI], b[elI + 1]) : par.pts[elI].p;
+    for (let i = 0; i < par.pts.length - 1; i++) {
+      if (b[i] === null || b[i + 1] === null) continue;
+      const dE = RD * (b[i] + b[i + 1]) / 2 * Math.log(par.pts[i].p / par.pts[i + 1].p);
+      if (i < lfcI) { if (dE < 0) cin += dE; } else if (i < elI) { if (dE > 0) cape += dE; }
+    }
+  }
+  // Plafonds : depuis le sol, et depuis une pente (thermiques de relief)
+  const mk = (q0, T00, Td00) => { const t = thermalFrom(q0, T00, Td00); if (t.ceil !== null && envZ(t.cu ? t.lcl : t.ceil) - envZ(q0) < 100) t.ceil = null; return { p0: q0, T0: T00, Td0: Td00, ceil: t.ceil, cu: t.cu, lcl: t.lcl, topP: t.ceil === null ? null : (t.cu ? t.lcl : t.ceil) }; };
+  const sol = mk(p0s, sfcT, sfcTd);
+  let rel = null;
+  if (S.relief && S.relief.on) { const pr = pAtZ(S.relief.z), Te = pr ? envT(pr) : null;
+    if (pr && pr < p0s - 1 && Te !== null) { const Tde = envTd(pr), T0r = Te + S.relief.dT; rel = mk(pr, T0r, Math.min(Tde ?? Te - 10, T0r)); } }
+  let diag = null;
+  if (rel) { const zS = sol.topP ? envZ(sol.topP) : null, zR = rel.topP ? envZ(rel.topP) : null;
+    diag = { kind: zR === null ? "norel" : (zS === null || zS < S.relief.z - 100) ? "lid" : "mixed", zS, zR }; }
+  const prim = rel && diag.kind === "lid" ? rel : sol, relief = prim === rel;
+  const thP0 = prim.p0, thT0 = prim.T0, thTd0 = prim.Td0, ceilP = prim.ceil;
+  const sfcLcl = lclOf(thP0, thT0, thTd0);
+  const cumulus = prim.cu;
+  const thermalTopP = ceilP === null ? null : (cumulus ? sfcLcl.p : ceilP);
+  // Indices classiques
+  const g = p => p <= p0s && p >= snd.pmin ? envT(p) : null, gd = p => p <= p0s && p >= snd.pmin ? envTd(p) : null;
+  const T850 = g(850), Td850 = gd(850), T700 = g(700), Td700 = gd(700), T500 = g(500);
+  const K = [T850, Td850, T700, Td700, T500].every(v => v !== null) ? T850 - T500 + Td850 - (T700 - Td700) : null;
+  const TT = [T850, Td850, T500].every(v => v !== null) ? T850 + Td850 - 2 * T500 : null;
+  let LI = null; if (T500 !== null) { const pp = par.pts.find(q => q.p <= 500); if (pp) LI = T500 - pp.T; }
+  // Eau précipitable
+  let pw = 0; for (let i = 0; i < L.length - 1; i++) { const a = L[i], c = L[i + 1]; if (a.Td === null || c.Td === null) continue;
+    const qa = mixr(a.Td, a.p) / 1000, qc = mixr(c.Td, c.p) / 1000; pw += (qa / (1 + qa) + qc / (1 + qc)) / 2 * (a.p - c.p) * 100 / G; }
+  // Isotherme 0 °C
+  let frz = null; if (L[0].T <= 0) frz = "sol"; else for (let i = 0; i < L.length - 1; i++) if (L[i].T > 0 && L[i + 1].T <= 0) {
+    const pz = crossP(L[i].p, L[i + 1].p, L[i].T, L[i + 1].T); frz = envZ(pz); break; }
+  // Cisaillement 0–6 km
+  let shear = null; const w0 = windAtZ(snd.zsfc + 10) || (snd.wind[0] && Math.abs(snd.wind[0].p - p0s) < 15 ? snd.wind[0] : null), w6 = windAtZ(snd.zsfc + 6000);
+  if (w0 && w6) shear = Math.hypot(w6.u - w0.u, w6.v - w0.v);
+  return { par, b, lfc, el, cape, cin, LI, K, TT, pw, frz, shear, ceilP, thermalTopP, cumulus, sfcLcl, sfcT, sfcTd, p0, T0, Td0, lfcI, elI, thP0, thT0, thTd0, relief, sol, rel, diag };
+}
+
+// ---------- Rendu ----------
+const cv = $("cv"), ctx = cv.getContext("2d");
+let C = {};
+const focus = () => S.tut ? (curSteps()[S.tut.i].focus || null) : null;
+const on = l => { const F = focus(); return !F || F.includes(l); };
+const al = (l, a) => on(l) ? a : a * 0.12;
+const lw = (l, w) => { const F = focus(); return F && F.includes(l) ? w * 1.8 : w; };
+const show = (l, id) => $(id).checked || !!(focus() && focus().includes(l));
+function readColors() { const cs = getComputedStyle(document.documentElement); const k = ["paper", "surface", "ink", "muted", "rule", "accent", "iso", "dry", "moist", "mixr", "temp", "dew", "parcel", "ground", "cape", "cin", "good", "warn", "bad"];
+  C = {}; k.forEach(n => C[n] = cs.getPropertyValue("--" + n).trim()); }
+const SPAN = { 100: 80, 200: 70, 300: 62, 500: 48, 600: 42, 700: 36 }, SKEW = 35;
+
+function geometry() {
+  const w = cv.clientWidth, h = Math.round(Math.min(Math.max(w * 0.95, 420), 860));
+  const dpr = window.devicePixelRatio || 1; cv.style.height = h + "px";
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const narrow = w < 520, showWind = show("wind", "tWind");
+  const left = narrow ? 44 : 64, right = w - (showWind ? (narrow ? 34 : 46) : 10), top = 10, bottom = h - 26;
+  const pB = S.snd.psfc > 1000 ? 1050 : 1000, pT = S.pTop;
+  const span = SPAN[pT] || 70, sfcT = S.tx ?? S.snd.levels[0].T;
+  const Tright = Math.ceil((Math.max(sfcT, S.snd.levels[0].T) + 12 + SKEW * Math.log(pB / S.snd.psfc)) / 5) * 5, Tleft = Tright - span;
+  const k = span / (right - left);
+  const y = p => bottom - (Math.log(pB / p) / Math.log(pB / pT)) * (bottom - top);
+  const pOfY = yy => pB / Math.exp((bottom - yy) / (bottom - top) * Math.log(pB / pT));
+  const x = (T, p) => left + (T + SKEW * Math.log(pB / p) - Tleft) / k;
+  const TofXY = (xx, yy) => Tleft + (xx - left) * k - SKEW * Math.log(pB / pOfY(yy));
+  return { w, h, left, right, top, bottom, pB, pT, Tleft, Tright, k, x, y, pOfY, TofXY, narrow, showWind };
+}
+function poly(pts, g) { ctx.beginPath(); let first = true; for (const [T, p] of pts) { const X = g.x(T, p), Y = g.y(p); if (first) { ctx.moveTo(X, Y); first = false; } else ctx.lineTo(X, Y); } ctx.stroke(); }
+const pRange = (a, b, n) => { const out = []; for (let i = 0; i <= n; i++) out.push(a * Math.pow(b / a, i / n)); return out; };
+
+function draw() {
+  if (!S.snd) return; readColors();
+  const g = geometry(); S.geom = g; const an = S.an;
+  const { w, h, left, right, top, bottom, pB, pT } = g;
+  ctx.clearRect(0, 0, w, h); ctx.fillStyle = C.surface; ctx.fillRect(0, 0, w, h);
+  ctx.save(); ctx.beginPath(); ctx.rect(left, top, right - left, bottom - top); ctx.clip();
+  // sol
+  if (S.snd.psfc < pB) { ctx.fillStyle = C.ground; ctx.fillRect(left, g.y(S.snd.psfc), right - left, bottom - g.y(S.snd.psfc)); }
+  // isobares
+  ctx.lineWidth = lw("isobar", 1); ctx.strokeStyle = focus() && on("isobar") ? C.muted : C.rule;
+  for (let p = 1050; p >= 100; p -= 50) if (p <= pB && p >= pT) { ctx.globalAlpha = al("isobar", p % 100 ? .5 : 1); ctx.beginPath(); ctx.moveTo(left, g.y(p)); ctx.lineTo(right, g.y(p)); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  // isothermes
+  ctx.strokeStyle = C.iso;
+  for (let T = -160; T <= 60; T += 10) { ctx.lineWidth = lw("iso", T === 0 ? 1.6 : 0.8); ctx.globalAlpha = al("iso", T === 0 ? .95 : .55); poly([[T, pB], [T, pT]], g); }
+  // adiabatiques sèches
+  if (show("dry", "tDry")) { ctx.strokeStyle = C.dry; ctx.lineWidth = lw("dry", .8); ctx.globalAlpha = al("dry", .55); const ps = pRange(pB, pT, 30);
+    for (let th = -40; th <= 200; th += 10) poly(ps.map(p => [tFromTheta(th, p), p]), g); }
+  // pseudo-adiabatiques
+  if (show("moist", "tMoist")) { ctx.strokeStyle = C.moist; ctx.lineWidth = lw("moist", .8); ctx.globalAlpha = al("moist", .6); ctx.setLineDash([5, 4]);
+    for (let tw = -20; tw <= 40; tw += 4) { const pts = []; let T = tw, p = 1000;
+      // vers le bas
+      const down = []; let Td = tw, pd = 1000; while (pd < pB) { const p2 = Math.min(pB, pd + 10); Td = moistStep(Td, pd, p2); pd = p2; down.push([Td, pd]); }
+      down.reverse().forEach(q => pts.push(q)); pts.push([T, p]);
+      while (p > pT && T > -90) { const p2 = Math.max(pT, p - 10); T = moistStep(T, p, p2); p = p2; pts.push([T, p]); }
+      poly(pts, g); }
+    ctx.setLineDash([]); }
+  // rapport de mélange
+  if (show("mixr", "tMix")) { ctx.strokeStyle = C.mixr; ctx.lineWidth = lw("mixr", .9); ctx.globalAlpha = al("mixr", .7); ctx.setLineDash([2, 4]);
+    const pEnd = Math.max(pT, 500);
+    for (const r of [0.5, 1, 2, 3, 5, 8, 12, 16, 20, 28]) poly(pRange(pB, pEnd, 8).map(p => [tdFromR(r, p), p]), g);
+    ctx.setLineDash([]); }
+  ctx.globalAlpha = 1;
+  // aires CAPE / CIN
+  const P = an.par.pts;
+  if ((show("cape", "tArea") || show("cin", "tArea")) && an.lfcI >= 0) {
+    const fillBetween = (i0, i1, col) => { if (i1 <= i0) return; ctx.beginPath();
+      for (let i = i0; i <= i1; i++) { const X = g.x(P[i].T, P[i].p), Y = g.y(P[i].p); i === i0 ? ctx.moveTo(X, Y) : ctx.lineTo(X, Y); }
+      for (let i = i1; i >= i0; i--) { const Te = envT(P[i].p); if (Te !== null) ctx.lineTo(g.x(Te, P[i].p), g.y(P[i].p)); }
+      ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
+    ctx.globalAlpha = al("cape", 1); fillBetween(an.lfcI, an.elI, C.cape);
+    ctx.globalAlpha = al("cin", 1); if (an.cin < -1) fillBetween(0, an.lfcI, C.cin);
+    ctx.globalAlpha = 1;
+  }
+  // courbes du sondage
+  const L = S.snd.levels;
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+  ctx.globalAlpha = al("curves", 1); ctx.strokeStyle = C.dew; ctx.lineWidth = 2.6; poly(L.filter(l => l.Td !== null).map(l => [l.Td, l.p]), g);
+  ctx.strokeStyle = C.temp; ctx.lineWidth = 2.8; poly(L.map(l => [l.T, l.p]), g);
+  // particule
+  ctx.globalAlpha = al("parcel", 1); ctx.strokeStyle = C.parcel; ctx.lineWidth = lw("parcel", 1.6); ctx.setLineDash([7, 5]); poly(P.map(q => [q.T, q.p]), g);
+  // rapport de mélange conservé jusqu'au NCA
+  ctx.lineWidth = 1; ctx.setLineDash([2, 3]); poly(pRange(an.p0, an.par.lcl.p, 6).map(p => [tdFromR(an.par.r, p), p]), g); ctx.setLineDash([]);
+  ctx.globalAlpha = al("levels", 1);
+  // plafond thermique sec (si différent de la particule)
+  const thLine = (o, wide) => { if (!o || o.ceil === null) return; const th = theta(o.T0, o.p0); ctx.strokeStyle = C.accent; ctx.lineWidth = wide ? 2.4 : 1.5; ctx.setLineDash(wide ? [6, 3] : [2, 3]);
+    poly(pRange(o.p0, o.ceil, 10).map(p => [tFromTheta(th, p), p]), g); ctx.setLineDash([]); };
+  if (S.ptype !== "sfc" || an.rel) thLine(an.sol, false);
+  if (an.rel) { thLine(an.rel, true); const Y = g.y(an.rel.p0), Te = envT(an.rel.p0); ctx.strokeStyle = C.accent; ctx.fillStyle = C.accent; ctx.lineWidth = 1.5;
+    if (Te !== null) { ctx.beginPath(); ctx.moveTo(g.x(Te, an.rel.p0), Y); ctx.lineTo(g.x(an.rel.T0, an.rel.p0), Y); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(g.x(an.rel.T0, an.rel.p0), Y, 4.5, 0, 7); ctx.fill(); }
+  // marqueurs de niveaux
+  const used = [];
+  const mark = (p, label, col) => { if (!p || p < pT || p > pB) return; const Y = g.y(p); let ty = Y - 4;
+    while (used.some(u => Math.abs(u - ty) < 12)) ty -= 12; used.push(ty); ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(right - 60, Y); ctx.lineTo(right - 4, Y); ctx.stroke();
+    ctx.fillStyle = col; ctx.font = "600 11px " + getComputedStyle(document.body).getPropertyValue("--f-display");
+    ctx.textAlign = "right"; ctx.fillText(label, right - 6, ty); };
+  mark(an.par.lcl.p, "NCA", C.ink);
+  if (an.lfc) mark(an.lfc, "NCL", C.bad);
+  if (an.el && an.cape > 1) mark(an.el, "NE", C.bad);
+  if (an.rel) { if (an.sol.topP) mark(an.sol.topP, an.sol.cu ? "Base cu (sol)" : "Plafond sol", C.accent); if (an.rel.topP) mark(an.rel.topP, an.rel.cu ? "Base cu (relief)" : "Plafond relief", C.accent); }
+  else if (an.thermalTopP) mark(an.thermalTopP, an.cumulus ? "Base cumulus" : "Plafond thermique", C.accent);
+  ctx.globalAlpha = 1;
+  // curseur
+  if (S.cursorP && S.cursorP <= pB && S.cursorP >= pT) {
+    const Y = g.y(S.cursorP); ctx.strokeStyle = C.ink; ctx.globalAlpha = .45; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(left, Y); ctx.lineTo(right, Y); ctx.stroke(); ctx.globalAlpha = 1;
+    const dot = (T, col) => { if (T === null) return; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(g.x(T, S.cursorP), Y, 4, 0, 7); ctx.fill(); };
+    dot(envT(S.cursorP), C.temp); dot(envTd(S.cursorP), C.dew);
+    const pp = parcelAt(S.cursorP); if (pp !== null) dot(pp, C.parcel);
+  }
+  ctx.restore();
+  // cadre et axes
+  ctx.strokeStyle = C.muted; ctx.lineWidth = 1; ctx.strokeRect(left + .5, top + .5, right - left, bottom - top);
+  const fm = getComputedStyle(document.body).getPropertyValue("--f-mono") || "monospace";
+  ctx.font = `${g.narrow ? 10 : 11}px ${fm}`; ctx.fillStyle = C.muted; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const p of [1000, 900, 850, 800, 700, 600, 500, 400, 300, 250, 200, 150, 100]) if (p <= pB && p >= pT && p <= S.snd.psfc + 30) {
+    const Y = g.y(p); ctx.fillStyle = C.ink; ctx.fillText(String(p), left - 6, Y - (g.narrow ? 0 : 6));
+    const z = p <= S.snd.psfc ? envZ(p) : null;
+    if (z !== null && !g.narrow) { ctx.fillStyle = C.muted; ctx.fillText(Math.round(z) + " m", left - 6, Y + 7); }
+  }
+  ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillStyle = C.iso;
+  for (let T = -160; T <= 60; T += 10) { const X = g.x(T, pB); if (X > left + 8 && X < right - 8) ctx.fillText(T + "°", X, bottom + 6); }
+  // étiquettes du rapport de mélange
+  if (show("mixr", "tMix")) { ctx.globalAlpha = al("mixr", 1); ctx.fillStyle = C.mixr; ctx.textBaseline = "bottom"; const pEnd = Math.max(pT, 500);
+    for (const r of [0.5, 1, 2, 3, 5, 8, 12, 16, 20, 28]) { const X = g.x(tdFromR(r, pEnd), pEnd); if (X > left + 6 && X < right - 6) ctx.fillText(String(r), X, g.y(pEnd) - 2); } }
+  // vent
+  ctx.globalAlpha = 1;
+  if (g.showWind) { ctx.globalAlpha = al("wind", 1); const cx = g.narrow ? w - 17 : w - 23;
+    ctx.strokeStyle = C.ink; ctx.fillStyle = C.ink; ctx.lineWidth = lw("wind", 1.3);
+    let lastY = -99; for (const wd of S.snd.wind) { if (wd.p < pT || wd.p > pB) continue; const Y = g.y(wd.p); if (Math.abs(Y - lastY) < 14) continue; lastY = Y; barb(cx, Y, wd.dir, wd.spd, g.narrow ? 16 : 20); } }
+  ctx.globalAlpha = 1; tutAnnot(g);
+}
+function barb(x, y, dir, spd, len) {
+  const a = dir * Math.PI / 180, dx = Math.sin(a), dy = -Math.cos(a);
+  if (spd < 2.5) { ctx.beginPath(); ctx.arc(x, y, 3, 0, 7); ctx.stroke(); return; }
+  const ex = x + dx * len, ey = y + dy * len; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey); ctx.stroke();
+  let s = Math.round(spd / 5) * 5, pos = 0; const px = -dy, py = dx, fl = len * .45, st = len * .16;
+  const at = d => [ex - dx * d, ey - dy * d];
+  while (s >= 50) { const [ax, ay] = at(pos), [bx, by] = at(pos + st * 1.4); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + px * fl, ay + py * fl); ctx.lineTo(bx, by); ctx.closePath(); ctx.fill(); pos += st * 1.8; s -= 50; }
+  while (s >= 10) { const [ax, ay] = at(pos); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + px * fl + dx * st, ay + py * fl + dy * st); ctx.stroke(); pos += st; s -= 10; }
+  if (s >= 5) { if (pos === 0) pos = st; const [ax, ay] = at(pos); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + px * fl / 2 + dx * st / 2, ay + py * fl / 2 + dy * st / 2); ctx.stroke(); }
+}
+function parcelAt(p) { const P = S.an.par.pts; for (let i = 0; i < P.length - 1; i++) if (p <= P[i].p && p >= P[i + 1].p) { const f = Math.log(P[i].p / p) / Math.log(P[i].p / P[i + 1].p); return P[i].T + f * (P[i + 1].T - P[i].T); } return null; }
+
+// ---------- Panneaux ----------
+const f1 = v => v === null || v === undefined || !isFinite(v) ? "—" : v.toFixed(1);
+const f0 = v => v === null || v === undefined || !isFinite(v) ? "—" : Math.round(v).toString();
+const zOf = p => p ? envZ(p) : null;
+const TIP = {
+  "Pression": "Pression atmosphérique au niveau du curseur (hPa)", "Altitude": "Altitude au-dessus de la mer (géopotentiel du modèle)",
+  "T / Td": "T : température de l'air · Td : point de rosée", "Humidité": "Humidité relative (100 % = saturation)",
+  "θ / θ'w": "θ : température potentielle · θ'w : température pseudo-adiabatique potentielle du thermomètre mouillé",
+  "r / rs": "r : rapport de mélange réel · rs : à saturation (g de vapeur par kg d'air sec)",
+  "Particule": "Température de la bulle soulevée à ce niveau, et écart avec l'air ambiant", "Vent": "Direction d'où vient le vent / vitesse en nœuds",
+  "NCA (condensation)": "Niveau de condensation par ascendance : base des cumulus", "NCL (convection libre)": "Au-dessus, la bulle monte seule",
+  "NE (équilibre)": "La bulle redevient plus froide : sommet probable des nuages convectifs", "Lifted Index": "T air − T bulle à 500 hPa ; négatif = instable",
+  "Indice K": "Potentiel orageux lié à la chaleur et l'humidité entre 850 et 500 hPa", "Total Totals": "Indice d'instabilité ; > 50 orages possibles",
+  "Isotherme 0 °C": "Altitude où la température passe sous 0 °C", "Eau précipitable": "Hauteur d'eau si toute la vapeur de la colonne tombait",
+  "Cisaillement 0–6 km": "Différence de vent entre le sol et 6 km : organise les orages", "Particule de départ": "Pression, température et point de rosée de départ de la bulle",
+  "Altitude du sol": "Relief du modèle (lissé), pas forcément celui du lieu réel", "Départ thermique (relief)": "Altitude de la pente et température de départ (air libre + chauffe)",
+  "CAPE": "Énergie convective disponible (surface rouge)", "CIN": "Inhibition convective (surface bleue) : énergie à fournir pour démarrer la convection",
+  "Base (NCA)": "Altitude de condensation de la bulle : base des cumulus", "Base (relief)": "Altitude de condensation de la bulle partie de la pente",
+  "Plafond sol": "Plafond des thermiques partis du fond de vallée (Tx au sol)", "Plafond relief": "Plafond des thermiques partis de la pente (air libre + chauffe)",
+  "Plafond": "Altitude maximale des thermiques (ou base des cumulus si atteinte avant)" };
+const tipAttr = k => TIP[k] ? ` title="${TIP[k].replace(/"/g, "&quot;")}"` : "";
+function kv(el, rows) { el.innerHTML = rows.map(([k, v]) => `<dt${tipAttr(k)}>${k}</dt><dd>${v}</dd>`).join(""); }
+function updateReadout() {
+  const p = S.cursorP, el = $("readout");
+  if (!p || p > S.snd.psfc || p < S.snd.pmin) { kv(el, [["Pression", "—"], ["Altitude", "—"], ["T / Td", "—"], ["Humidité", "—"], ["θ / θ'w", "—"], ["r / rs", "—"], ["Particule", "—"], ["Vent", "—"]]); highlightRow(null); return; }
+  const T = envT(p), Td = envTd(p), z = envZ(p), pp = parcelAt(p), w = windAtP(p);
+  kv(el, [["Pression", `${f0(p)} hPa`], ["Altitude", `${f0(z)} m`], ["T / Td", `${f1(T)} / ${f1(Td)} °C`],
+    ["Humidité", Td !== null ? `${f0(rh(T, Td))} %` : "—"], ["θ / θ'w", `${f1(theta(T, p))} / ${Td !== null ? f1(thetaW(T, p, Td)) : "—"} °C`],
+    ["r / rs", `${Td !== null ? f1(mixr(Td, p)) : "—"} / ${f1(mixr(T, p))} g/kg`],
+    ["Particule", pp !== null ? `${f1(pp)} °C (${pp - T >= 0 ? "+" : ""}${f1(pp - T)})` : "—"],
+    ["Vent", w ? `${f0(w.dir)}° / ${f0(w.spd)} kt` : "—"]]);
+  highlightRow(p);
+}
+function updateAnalysis() {
+  const a = S.an, zs = S.snd.zsfc;
+  const capeCls = a.cape < 300 ? "mute" : a.cape < 1000 ? "warn" : "bad";
+  const capeTxt = a.cape < 300 ? "Faible instabilité" : a.cape < 1000 ? "Instabilité modérée" : a.cape < 2500 ? "Forte instabilité" : "Instabilité extrême";
+  const cinTxt = a.lfcI < 0 ? "Pas de convection libre" : a.cin < -100 ? "Inhibition forte" : a.cin < -25 ? "Inhibition modérée" : "Déclenchement facile";
+  const cinCls = a.lfcI < 0 ? "mute" : a.cin < -100 ? "good" : a.cin < -25 ? "warn" : "bad";
+  const thTop = zOf(a.thermalTopP);
+  const thTxt = (a.relief ? "Relief · " : "") + (a.thermalTopP === null ? "Pas de thermique" : a.cumulus ? `Cumulus, base ${f0(thTop)} m` : `Thermiques bleus, plafond ${f0(thTop)} m`);
+  $("verdict").innerHTML = `<div><span class="pill ${capeCls}">${capeTxt}</span> <span class="pill ${cinCls}">${cinTxt}</span></div>
+    <div><span class="pill ${a.thermalTopP === null ? "mute" : "good"}">${thTxt}</span></div>`;
+  const stat = (k, v, u, n) => `<div class="stat"><div class="k"${tipAttr(k)}>${k}</div><div><span class="v">${v}</span><span class="u">${u}</span></div>${n ? `<div class="n">${n}</div>` : ""}</div>`;
+  $("stats").innerHTML = stat("CAPE", f0(a.cape), "J/kg") + stat("CIN", a.lfcI < 0 ? "—" : f0(a.cin), "J/kg")
+    + stat(a.relief ? "Base (relief)" : "Base (NCA)", f0(zOf(a.relief ? a.sfcLcl.p : a.par.lcl.p) ?? null), "m") + (a.rel
+      ? stat("Plafond sol", f0(zOf(a.sol.topP)), a.sol.topP ? "m" : "", a.sol.topP ? (a.sol.cu ? "cumulus" : "thermiques bleus") : "pas de thermique")
+        + stat("Plafond relief", f0(zOf(a.rel.topP)), a.rel.topP ? "m" : "", (a.rel.topP ? (a.rel.cu ? "cumulus" : "thermiques bleus") : "pas de thermique") + ` · pente ${f0(S.relief.z)} m`)
+      : stat("Plafond", f0(thTop), "m"));
+  const di = diagInfo(a); if (di) $("stats").innerHTML += `<div class="stat wide"><span class="pill ${di.cls}">${di.title}</span><p class="diag">${di.text}</p></div>`;
+  const lvl = p => p ? `${f0(p)} hPa · ${f0(zOf(p))} m` : "—";
+  const shTxt = a.shear === null ? "—" : `${f0(a.shear)} kt`;
+  kv($("idx"), [["NCA (condensation)", lvl(a.par.lcl.p)], ["NCL (convection libre)", lvl(a.lfc)], ["NE (équilibre)", a.cape > 1 ? lvl(a.el) : "—"],
+    ["Lifted Index", f1(a.LI)], ["Indice K", f1(a.K)], ["Total Totals", f1(a.TT)],
+    ["Isotherme 0 °C", a.frz === "sol" ? "au sol" : a.frz === null ? "—" : `${f0(a.frz)} m`],
+    ["Eau précipitable", `${f1(a.pw)} mm`], ["Cisaillement 0–6 km", shTxt],
+    ...(a.relief ? [["Départ thermique (relief)", `${f0(S.relief.z)} m · ${f1(a.thT0)} °C`]] : []), ["Particule de départ", `${f0(a.p0)} hPa · ${f1(a.T0)} / ${f1(a.Td0)} °C`], ["Altitude du sol", `${f0(zs)} m`]]);
+}
+function buildTable() {
+  const tb = $("tbl").tBodies[0];
+  tb.innerHTML = S.snd.levels.map((l, i) => {
+    const hrv = l.Td !== null ? rh(l.T, l.Td) : null, w = S.snd.wind.find(x => x.p === l.p);
+    return `<tr data-p="${l.p}"><td>${f0(l.p)}</td><td>${f0(l.z)}</td><td>${f1(l.T)}</td><td>${f1(l.Td)}</td><td>${f0(hrv)}</td><td>${f1(theta(l.T, l.p))}</td><td>${l.Td !== null ? f1(thetaW(l.T, l.p, l.Td)) : "—"}</td><td>${l.Td !== null ? f1(mixr(l.Td, l.p)) : "—"}</td><td>${w ? `${f0(w.dir)}° ${f0(w.spd)} kt` : "—"}</td></tr>`;
+  }).join("");
+}
+function highlightRow(p) { const rows = [...$("tbl").tBodies[0].rows]; let best = null, d = 1e9;
+  rows.forEach(r => { r.classList.remove("hl"); if (p) { const dd = Math.abs(Math.log(+r.dataset.p / p)); if (dd < d) { d = dd; best = r; } } });
+  if (best && d < 0.05) best.classList.add("hl"); }
+
+function reliefNote() { const n = $("rNote"); if (!S.relief.on || !S.an || S.an.relief) { n.hidden = true; return; }
+  n.hidden = false; n.textContent = `L'altitude ${Math.round(S.relief.z)} m est sous le sol du modèle (${Math.round(S.snd.zsfc)} m) : le plafond est calculé depuis le sol.`; }
+function recompute() { S.an = analyze(); reliefNote(); updateAnalysis(); updateReadout(); if (S.tut && S.tut.mode === "read") renderText(); draw();
+  $("txV").textContent = `${f1(S.an.sfcT)} °C`; $("tdxV").textContent = `${f1(S.an.sfcTd)} °C`; }
+
+function setSounding(snd, keepParcel) {
+  S.lastRaw = structuredClone(snd);
+  S.snd = prepare(snd);
+  if (!keepParcel) { S.tx = null; S.tdx = null; }
+  const L0 = S.snd.levels[0];
+  $("tx").value = S.tx ?? L0.T; $("tdx").value = S.tdx ?? (L0.Td ?? L0.T - 10);
+  $("dTitle").textContent = snd.title; $("dSub").textContent = snd.sub;
+  const bd = $("srcBadge"); bd.className = "badge " + (snd.live ? "live" : "ex"); bd.textContent = snd.live ? snd.badge : "Exemple fictif";
+  buildTable(); recompute();
+}
+
+// ---------- Import Open-Meteo / texte ----------
+function apiUrl() {
+  const lat = (+$("lat").value).toFixed(3), lon = (+$("lon").value).toFixed(3), model = $("model").value;
+  const v = ["temperature_2m", "dew_point_2m", "surface_pressure", "wind_speed_10m", "wind_direction_10m"];
+  for (const L of LEVELS) for (const n of ["temperature", "relative_humidity", "geopotential_height", "wind_speed", "wind_direction"]) v.push(`${n}_${L}hPa`);
+  return `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&models=${model}&hourly=${v.join(",")}&wind_speed_unit=kn&timezone=auto&forecast_days=2`;
+}
+function updateLink() { $("apiLink").href = apiUrl(); }
+const MODEL_NAMES = { meteofrance_arome_france: "AROME France", meteofrance_arpege_europe: "ARPEGE Europe", meteofrance_seamless: "Météo-France" };
+
+function loadOpenMeteo(d) {
+  if (d.error) throw new Error("Open-Meteo : " + (d.reason || "erreur"));
+  const H = d.hourly; if (!H || !H.time) throw new Error("JSON sans bloc « hourly ».");
+  const gv = n => H[n] ?? H[Object.keys(H).find(k => k.startsWith(n + "_"))];
+  const model = Object.keys(H).find(k => /_meteofrance_/.test(k)) ? "Météo-France" : (MODEL_NAMES[$("model").value] || "Modèle");
+  S.dataset = { d, gv, model, lat: d.latitude, lon: d.longitude, elev: d.elevation, times: H.time };
+  const sel = $("hourSel"); sel.innerHTML = "";
+  H.time.forEach((t, i) => { const o = document.createElement("option"); o.value = i;
+    const dt = new Date(t); o.textContent = dt.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" }) + " " + t.slice(11, 16); sel.appendChild(o); });
+  // échéance par défaut : prochain 14 h locale disponible
+  const nowIso = new Date().toISOString().slice(0, 13); let idx = H.time.findIndex(t => t.slice(11, 13) === "14" && t.slice(0, 13) >= nowIso.slice(0, 10));
+  if (idx < 0) idx = 0;
+  if (S.tut && S.tut.mode === "tut") { Object.assign(S.tut.saved, { dataset: S.dataset, hourIdx: idx, hourOptions: sel.innerHTML, tx: null, tdx: null }); sel.innerHTML = "<option>Didacticiel</option>"; }
+  else showHour(idx, false);
+  $("lat").value = (+d.latitude).toFixed(2); $("lon").value = (+d.longitude).toFixed(2); updateLink();
+}
+function sndFromHour(i, D = S.dataset) {
+  const gv = D.gv, at = n => { const a = gv(n); return a ? a[i] : null; };
+  let ps = at("surface_pressure"); const elev = D.elev ?? 0;
+  if (ps === null || ps === undefined) ps = 1013.25 * Math.pow(1 - 2.25577e-5 * elev, 5.25588);
+  const levels = [];
+  const T2 = at("temperature_2m"), Td2 = at("dew_point_2m");
+  if (T2 !== null && T2 !== undefined) levels.push({ p: ps, z: elev, T: T2, Td: Td2, dir: at("wind_direction_10m"), spd: at("wind_speed_10m") });
+  for (const L of LEVELS) {
+    if (L >= ps - 3) continue;
+    const T = at(`temperature_${L}hPa`); if (T === null || T === undefined) continue;
+    const RH = at(`relative_humidity_${L}hPa`), z = at(`geopotential_height_${L}hPa`);
+    if (z !== null && z !== undefined && z <= elev) continue;
+    const Td = RH ? tdFromE(Math.max(RH, 1) / 100 * es(T)) : null;
+    levels.push({ p: L, z, T, Td, dir: at(`wind_direction_${L}hPa`), spd: at(`wind_speed_${L}hPa`) });
+  }
+  if (levels.length < 4) throw new Error("Trop peu de niveaux pour cette échéance (le modèle ne fournit peut-être pas les niveaux de pression).");
+  const t = D.times[i], dt = new Date(t);
+  return { levels, psfc: ps, zsfc: elev, live: true, badge: D.model + " · prévision",
+    title: `${S.place ? S.place + " · " : ""}${D.model} — ${dt.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} ${t.slice(11, 16)}`,
+    sub: `${(+D.lat).toFixed(2)}° N, ${(+D.lon).toFixed(2)}° E · sol modèle ${Math.round(D.elev)} m · heure locale` };
+}
+function showHour(i, keep) {
+  if (!S.dataset || (S.tut && S.tut.mode === "tut")) return; i = Math.max(0, Math.min(S.dataset.times.length - 1, i));
+  try { const snd = sndFromHour(i); S.hourIdx = i; $("hourSel").value = i; setSounding(snd, keep); }
+  catch (e) { msg(e.message, "err"); }
+}
+function parseText(txt) {
+  const levels = [];
+  for (const line of txt.split(/\r?\n/)) {
+    const tok = line.trim().split(/[\s,;]+/); if (tok.length < 4) continue;
+    const n = tok.map(Number); if (n.slice(0, 4).some(v => !isFinite(v))) continue;
+    if (n[0] < 10 || n[0] > 1100) continue;
+    const l = { p: n[0], z: n[1], T: n[2], Td: n[3], dir: null, spd: null };
+    if (n.length >= 11 && n.every(isFinite)) { l.dir = n[6]; l.spd = n[7]; }
+    else if (n.length >= 6 && isFinite(n[4]) && isFinite(n[5])) { l.dir = n[4]; l.spd = n[5]; }
+    levels.push(l);
+  }
+  if (levels.length < 4) throw new Error("Format non reconnu : il faut au moins 4 lignes « p z T Td [dir kt] ».");
+  return { levels, live: true, badge: "Sondage importé", title: "Sondage importé", sub: `${levels.length} niveaux` };
+}
+function ingest(txt) {
+  txt = (txt || "").trim(); if (!txt) return; if (S.tut && S.tut.mode === "tut") exitTut();
+  try {
+    if (txt[0] === "{" || txt[0] === "[") { let d = JSON.parse(txt); if (Array.isArray(d)) d = d[0]; loadOpenMeteo(d); }
+    else { S.dataset = null; $("hourSel").innerHTML = "<option>—</option>"; setSounding(parseText(txt)); }
+    msg("Sondage chargé.", "ok"); $("pasteBox").open = false;
+  } catch (e) { msg(e.message.startsWith("Unexpected") ? "JSON incomplet : copiez bien toute la page (Ctrl/Cmd + A)." : e.message, "err"); }
+}
+function msg(t, kind) { const m = $("fetchMsg"); m.hidden = false; m.className = "msg " + (kind || ""); m.textContent = t;
+  if (kind === "ok") { const b = document.createElement("button"); b.type = "button"; b.className = "ghost sm"; b.style.marginLeft = "10px";
+    b.textContent = "Lire ce sondage avec moi"; b.addEventListener("click", startRead); m.appendChild(b); } }
+
+async function tryFetch() {
+  updateLink(); msg("Téléchargement en cours…");
+  const ctrl = new AbortController(), to = setTimeout(() => ctrl.abort(), 8000);
+  try { const r = await fetch(apiUrl(), { signal: ctrl.signal }); clearTimeout(to);
+    const d = await r.json(); loadOpenMeteo(d);
+    msg(`Prévision ${MODEL_NAMES[$("model").value] || ""} chargée le ${new Date().toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}.`, "ok");
+    store.set({ lat: $("lat").value, lon: $("lon").value, model: $("model").value, place: S.place || "" }); }
+  catch (e) { clearTimeout(to);
+    if (e && e.message && e.message.startsWith("Open-Meteo")) { msg(e.message, "err"); return; }
+    msg("Open-Meteo ne répond pas (connexion Internet ?). L'exemple fictif reste affiché ; réessayez ou importez un fichier.", "err"); }
+}
+
+// ---------- Événements ----------
+$("preset").addEventListener("change", pickPreset);
+["lat", "lon", "model"].forEach(id => $(id).addEventListener("input", updateLink));
+$("fetchBtn").addEventListener("click", tryFetch);
+$("pasteBtn").addEventListener("click", () => ingest($("pasteArea").value));
+$("pasteArea").addEventListener("paste", () => setTimeout(() => ingest($("pasteArea").value), 0));
+$("fileIn").addEventListener("change", e => { const f = e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => ingest(r.result); r.readAsText(f); });
+$("hourSel").addEventListener("change", e => showHour(+e.target.value, true));
+$("prevH").addEventListener("click", () => showHour(S.hourIdx - 1, true));
+$("nextH").addEventListener("click", () => showHour(S.hourIdx + 1, true));
+$("pTop").addEventListener("change", e => { S.pTop = +e.target.value; draw(); });
+["tDry", "tMoist", "tMix", "tArea", "tWind"].forEach(id => $(id).addEventListener("change", draw));
+$("ptype").addEventListener("change", e => { S.ptype = e.target.value; recompute(); });
+$("tx").addEventListener("input", e => { S.tx = +e.target.value; if (S.tdx !== null && S.tdx > S.tx) { S.tdx = S.tx; $("tdx").value = S.tx; } recompute(); });
+$("tdx").addEventListener("input", e => { S.tdx = Math.min(+e.target.value, S.tx ?? S.snd.levels[0].T); recompute(); });
+$("resetP").addEventListener("click", () => { S.tx = null; S.tdx = null; const L0 = S.snd.levels[0]; $("tx").value = L0.T; $("tdx").value = L0.Td ?? L0.T - 10; recompute(); });
+cv.addEventListener("pointermove", e => { if (!S.geom) return; const r = cv.getBoundingClientRect(), y = e.clientY - r.top;
+  if (y < S.geom.top || y > S.geom.bottom) return; S.cursorP = S.geom.pOfY(y); updateReadout(); draw(); });
+cv.addEventListener("pointerdown", e => { const r = cv.getBoundingClientRect(), y = e.clientY - r.top; if (S.geom && y >= S.geom.top && y <= S.geom.bottom) { S.cursorP = S.geom.pOfY(y); updateReadout(); draw(); } });
+new ResizeObserver(() => draw()).observe($("cv-wrap"));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+document.fonts && document.fonts.ready.then(draw);
+
+// ---------- Recherche, géolocalisation, mémoire ----------
+const store = { get() { try { return JSON.parse(localStorage.getItem("emagramme-site") || "null"); } catch { return null; } },
+  set(v) { try { localStorage.setItem("emagramme-site", JSON.stringify(v)); } catch {} } };
+async function searchCity() {
+  const q = $("city").value.trim(); if (!q) return; msg("Recherche de « " + q + " »…");
+  try {
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=fr&format=json`);
+    const d = await r.json(); const res = d.results || [];
+    if (!res.length) { msg("Aucune commune trouvée pour « " + q + " ».", "err"); return; }
+    const sel = $("preset"); [...sel.querySelectorAll("option[data-found]")].forEach(o => o.remove());
+    res.slice().reverse().forEach(c => { const o = document.createElement("option"); o.dataset.found = "1";
+      o.value = `${c.latitude},${c.longitude}`; o.dataset.name = c.name;
+      o.textContent = `${c.name} (${[c.admin2 || c.admin1, c.country_code].filter(Boolean).join(", ")}${c.elevation != null ? ", " + Math.round(c.elevation) + " m" : ""})`;
+      sel.insertBefore(o, sel.options[1]); });
+    sel.selectedIndex = 1; pickPreset();
+  } catch (e) { msg("Recherche impossible (connexion Internet ?).", "err"); }
+}
+function pickPreset() { const o = $("preset").selectedOptions[0]; if (!o || !o.value) return;
+  const [a, b] = o.value.split(","); $("lat").value = (+a).toFixed(2); $("lon").value = (+b).toFixed(2);
+  S.place = o.dataset.name || o.textContent; updateLink(); tryFetch(); }
+$("cityBtn").addEventListener("click", searchCity);
+$("city").addEventListener("keydown", e => { if (e.key === "Enter") searchCity(); });
+$("geoBtn").addEventListener("click", () => {
+  if (!navigator.geolocation) { msg("Géolocalisation indisponible dans ce navigateur.", "err"); return; }
+  msg("Localisation en cours…");
+  navigator.geolocation.getCurrentPosition(pos => { $("lat").value = pos.coords.latitude.toFixed(2); $("lon").value = pos.coords.longitude.toFixed(2);
+    S.place = "Ma position"; updateLink(); tryFetch(); },
+    () => msg("Position refusée ou introuvable : saisissez une commune ou des coordonnées.", "err"), { timeout: 10000 });
+});
+$("lat").addEventListener("change", () => { S.place = ""; }); $("lon").addEventListener("change", () => { S.place = ""; });
+
+// ---------- Didacticiel ----------
+const fr = v => v.toFixed(1).replace(".", ",");
+const fmtZ = z => z === null || z === undefined ? "—" : `${Math.round(z).toLocaleString("fr-FR")} m`;
+const fdisp = () => getComputedStyle(document.body).getPropertyValue("--f-display");
+const inPlot = p => p <= S.geom.pB && p >= S.geom.pT;
+const ps0 = () => S.snd.psfc;
+function tag(x, y, text, col, side) {
+  const g = S.geom; ctx.save(); ctx.globalAlpha = 1; ctx.font = `600 12px ${fdisp()}`; ctx.textBaseline = "top"; ctx.textAlign = "left";
+  const lines = text.split("\n"), w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 14, h = lines.length * 15 + 8;
+  let bx = side === "left" ? x - w - 10 : x + 10; bx = Math.max(g.left + 3, Math.min(bx, g.right - w - 3));
+  const by = Math.max(g.top + 3, Math.min(y - h / 2, g.bottom - h - 3));
+  ctx.fillStyle = C.surface; ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.rect(bx, by, w, h); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = C.ink; lines.forEach((l, i) => ctx.fillText(l, bx + 7, by + 5 + i * 15)); ctx.restore();
+}
+function ring(T, p, col) { const g = S.geom; ctx.save(); ctx.globalAlpha = 1; ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.fillStyle = C.surface;
+  ctx.beginPath(); ctx.arc(g.x(T, p), g.y(p), 6, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore(); }
+function clipPlot() { const g = S.geom; ctx.save(); ctx.beginPath(); ctx.rect(g.left, g.top, g.right - g.left, g.bottom - g.top); ctx.clip(); ctx.globalAlpha = 1; }
+function hiLine(pts, col) { clipPlot(); ctx.strokeStyle = col; ctx.lineWidth = 3.2; ctx.setLineDash([]); poly(pts, S.geom); ctx.restore(); }
+function setTx(v) { S.tx = v; $("tx").value = v ?? S.snd.levels[0].T; if (S.tdx !== null && v !== null && S.tdx > v) S.tdx = v; recompute(); }
+const txActions = [["Tx = 24 °C", () => setTx(24)], ["Tx = 29 °C (prévue)", () => setTx(null)], ["Tx = 33 °C", () => setTx(33)]];
+
+const TUT = [
+ { t: "Qu'est-ce qu'un émagramme ?", focus: null,
+   b: `<p>Un émagramme est un diagramme qui décrit l'atmosphère au-dessus d'un lieu : <b>l'altitude en vertical</b> (exprimée en pression) et <b>la température en horizontal</b>.</p>
+       <p>On y lit la stabilité de l'air, son humidité, l'altitude des nuages, la hauteur des thermiques et l'énergie disponible pour les orages.</p>
+       <p class="note">Le didacticiel utilise le profil d'exemple. Vos données reviennent quand vous le quittez. Flèches ← → du clavier pour naviguer.</p>` },
+ { t: "L'axe vertical : la pression", focus: ["isobar"],
+   b: `<p>Les lignes horizontales sont les <b>isobares</b>. La pression diminue quand on monte : l'axe est gradué en hPa, de 1000 en bas vers 100 en haut, à échelle logarithmique.</p>
+       <p>À gauche, sous chaque pression, l'altitude correspondante. Repères : <b>850 hPa ≈ 1 500 m</b>, <b>700 hPa ≈ 3 000 m</b>, <b>500 hPa ≈ 5 500 m</b>.</p>
+       <p>La bande grisée en bas représente le sol.</p>`,
+   annot() { for (const p of [850, 700, 500, 300]) if (inPlot(p) && p < ps0()) tag(S.geom.left, S.geom.y(p), `${p} hPa ≈ ${fmtZ(envZ(p))}`, C.muted); } },
+ { t: "Les isothermes inclinées", focus: ["iso"],
+   b: `<p>Les lignes orange relient les points de même température. Sur l'émagramme 761 elles sont <b>inclinées à 45°</b> : pour lire une température, on suit l'oblique jusqu'à l'échelle du bas.</p>
+       <p>Cette inclinaison écarte les courbes et rend les changements de pente bien visibles. L'isotherme <b>0 °C</b> est plus épaisse : elle marque la limite pluie/neige et le risque de givrage.</p>`,
+   annot() { const g = S.geom; for (const [T, p] of [[20, 950], [0, 700], [-20, 500]]) if (inPlot(p)) { ring(T, p, C.iso); tag(g.x(T, p), g.y(p), `Isotherme ${T > 0 ? "+" : ""}${T} °C`, C.iso); } } },
+ { t: "Les adiabatiques sèches", focus: ["dry"],
+   b: `<p>Les lignes vertes montrent l'évolution d'une bulle d'air <b>non saturée</b> qui monte sans échanger de chaleur : elle se refroidit de <b>1 °C tous les 100 m</b> (et se réchauffe d'autant en descendant).</p>
+       <p>Le long d'une même ligne, la <b>température potentielle θ</b> reste constante. Celle qui part du sol est surlignée.</p>`,
+   annot() { const a = S.an, th = theta(a.sfcT, ps0()), pe = Math.max(500, S.geom.pT);
+     hiLine(pRange(ps0(), pe, 20).map(p => [tFromTheta(th, p), p]), C.dry); ring(a.sfcT, ps0(), C.dry);
+     tag(S.geom.x(tFromTheta(th, 700), 700), S.geom.y(700), `θ = ${fr(th)} °C\n−1 °C / 100 m`, C.dry); } },
+ { t: "Les pseudo-adiabatiques", focus: ["moist"],
+   b: `<p>Les tirets bleus décrivent une bulle <b>saturée</b>, donc dans un nuage. La vapeur qui se condense libère de la chaleur : le refroidissement n'est plus que de <b>0,4 à 0,7 °C / 100 m</b> dans les basses couches.</p>
+       <p>En altitude, l'air froid contient peu de vapeur : ces lignes se rapprochent alors des adiabatiques sèches.</p>`,
+   annot() { const a = S.an; let T = a.par.lcl.T, p = a.par.lcl.p; const pts = [[T, p]];
+     while (p > Math.max(S.geom.pT, 200)) { const p2 = p - 10; T = moistStep(T, p, p2); p = p2; pts.push([T, p]); }
+     hiLine(pts, C.moist); const q = pts[Math.floor(pts.length * 0.3)];
+     tag(S.geom.x(q[0], q[1]), S.geom.y(q[1]), "≈ −0,5 °C / 100 m\n(air saturé)", C.moist); } },
+ { t: "Le rapport de mélange", focus: ["mixr"],
+   b: `<p>Les pointillés violets donnent la quantité maximale de vapeur que l'air peut contenir, en <b>grammes par kilo d'air sec</b>. L'air chaud en contient beaucoup plus que l'air froid.</p>
+       <p>Une bulle qui monte sans condenser <b>garde sa vapeur</b> : son point de rosée suit donc ces lignes (environ −0,2 °C / 100 m).</p>`,
+   annot() { const a = S.an, r = mixr(a.sfcTd, ps0());
+     hiLine(pRange(ps0(), 600, 10).map(p => [tdFromR(r, p), p]), C.mixr); ring(a.sfcTd, ps0(), C.mixr);
+     tag(S.geom.x(tdFromR(r, 750), 750), S.geom.y(750), `r = ${fr(r)} g/kg\nvapeur de l'air au sol`, C.mixr, "left"); } },
+ { t: "Courbe d'état et courbe de rosée", focus: ["curves"],
+   b: `<p>Ce sont les deux courbes du sondage. En <b style="color:var(--temp)">rouge</b>, la température à chaque niveau. En <b style="color:var(--dew)">bleu</b>, le point de rosée.</p>
+       <p>L'écart entre les deux mesure la sécheresse de l'air. <b>Courbes proches</b> : air humide, nuages si elles se touchent. <b>Courbes écartées</b> : air sec.</p>`,
+   annot() { const L = S.snd.levels.filter(l => l.Td !== null && l.p >= 300 && l.p < ps0()); if (!L.length) return;
+     const mn = L.reduce((a, b) => (b.T - b.Td < a.T - a.Td ? b : a)), mx = L.reduce((a, b) => (b.T - b.Td > a.T - a.Td ? b : a));
+     ring(mn.Td, mn.p, C.dew); tag(S.geom.x(mn.Td, mn.p), S.geom.y(mn.p), `Air humide\nécart T–Td ${fr(mn.T - mn.Td)} °C`, C.dew, "left");
+     ring(mx.Td, mx.p, C.dew); tag(S.geom.x(mx.Td, mx.p), S.geom.y(mx.p), `Air sec\nécart T–Td ${fr(mx.T - mx.Td)} °C`, C.dew, "left"); } },
+ { t: "Lire la stabilité", focus: ["curves", "dry", "moist"],
+   b: `<p>On compare la pente de la courbe rouge à celle des adiabatiques :</p>
+       <p><b style="color:var(--bad)">Plus penchée à gauche que la sèche</b> (> 1 °C / 100 m) : instable, l'air monte tout seul.</p>
+       <p><b style="color:var(--warn)">Entre sèche et pseudo-adiabatique</b> : instabilité conditionnelle, l'air n'est instable qu'une fois saturé.</p>
+       <p><b style="color:var(--good)">Plus redressée, verticale ou penchée à droite</b> : stable. Une <b>inversion</b> (la température augmente avec l'altitude) fait couvercle : thermiques, fumées et pollution s'y bloquent.</p>`,
+   annot() { const L = S.snd.levels, g = S.geom; clipPlot(); ctx.lineWidth = 10; ctx.lineCap = "butt"; ctx.globalAlpha = .45;
+     let worst = null;
+     for (let i = 0; i < L.length - 1; i++) { const a = L[i], b = L[i + 1], dz = b.z - a.z; if (!(dz > 0)) continue;
+       const gam = (a.T - b.T) / dz * 100, Tm = (a.T + b.T) / 2, pm = Math.sqrt(a.p * b.p);
+       const gm = moistDTdp(Tm, pm) * pm * G / (RD * (Tm + 273.15)) * 100;
+       ctx.strokeStyle = gam > 0.98 ? C.bad : gam > gm ? C.warn : C.good;
+       ctx.beginPath(); ctx.moveTo(g.x(a.T, a.p), g.y(a.p)); ctx.lineTo(g.x(b.T, b.p), g.y(b.p)); ctx.stroke();
+       if (pm >= 300 && (!worst || gam < worst.gam)) worst = { gam, T: Tm, p: pm }; }
+     ctx.restore();
+     if (worst) tag(g.x(worst.T, worst.p), g.y(worst.p), `${worst.gam < 0 ? "Inversion" : "Couche la plus stable"}\n${fr(worst.gam)} °C / 100 m`, C.good); } },
+ { t: "Soulever une bulle : le NCA", focus: ["parcel", "dry", "mixr", "levels"],
+   b: `<p>On imagine une bulle d'air partant du sol. Elle monte en suivant l'<b>adiabatique sèche</b> (tirets noirs), pendant que son point de rosée suit la <b>ligne de rapport de mélange</b> (pointillés fins).</p>
+       <p>Là où les deux se rejoignent, la bulle est saturée : c'est le <b>NCA</b>, niveau de condensation par ascendance, c'est-à-dire la <b>base des cumulus</b>. Au-dessus, elle suit une pseudo-adiabatique.</p>`,
+   annot() { const a = S.an, g = S.geom; ring(a.sfcT, ps0(), C.temp); ring(a.sfcTd, ps0(), C.dew); ring(a.par.lcl.T, a.par.lcl.p, C.ink);
+     tag(g.x(a.par.lcl.T, a.par.lcl.p), g.y(a.par.lcl.p), `NCA : base des cumulus\n${fmtZ(envZ(a.par.lcl.p))} · ${Math.round(a.par.lcl.p)} hPa`, C.ink); } },
+ { t: "L'énergie des orages : la CAPE", focus: ["parcel", "curves", "cape", "levels"],
+   b: `<p>Au-dessus du <b>NCL</b> (niveau de convection libre), la bulle est plus chaude que l'air qui l'entoure : elle accélère vers le haut, comme une montgolfière.</p>
+       <p>La <b>surface rouge</b> entre les deux courbes représente cette énergie, la <b>CAPE</b>, en J/kg. Elle s'arrête au <b>NE</b> (niveau d'équilibre), proche du sommet des cumulonimbus.</p>
+       <p>Repères : moins de 300 faible · 300 à 1 000 modérée · 1 000 à 2 500 forte · au-delà, extrême.</p>`,
+   annot() { const a = S.an, g = S.geom;
+     if (a.lfcI < 0 || a.cape < 1) { tag(g.left + 20, g.y(500), "Aucune CAPE : la bulle reste\nplus froide que l'air ambiant", C.muted); return; }
+     const pm = Math.sqrt(a.lfc * a.el), Tp = parcelAt(pm); if (Tp !== null) tag(g.x(Tp, pm), g.y(pm), `CAPE ≈ ${Math.round(a.cape)} J/kg`, C.bad); } },
+ { t: "Le verrou : la CIN", focus: ["parcel", "curves", "cin", "levels"],
+   b: `<p>Sous le NCL, la bulle peut être <b>plus froide</b> que l'air ambiant : il faut de l'énergie pour la soulever. C'est la <b>CIN</b> (surface bleue), en J/kg négatifs.</p>
+       <p>Une CIN forte (sous −100 J/kg) empêche les orages malgré une forte CAPE, jusqu'à ce qu'un relief, un front ou le réchauffement de l'après-midi lève le verrou.</p>
+       <p>Essayez une journée moins chaude :</p>`,
+   actions: txActions,
+   annot() { const a = S.an, g = S.geom;
+     if (a.lfcI < 0) { tag(g.left + 20, g.y(Math.min(ps0() - 80, 800)), "Pas de convection libre :\nla bulle ne décolle jamais", C.dew); return; }
+     if (a.cin > -1) { tag(g.left + 20, g.y(Math.min(ps0() - 80, 800)), "Pas de CIN : rien ne freine\nl'ascendance", C.dew); return; }
+     const pm = Math.sqrt(ps0() * a.lfc), Te = envT(pm); tag(g.x(Te, pm), g.y(pm), `CIN ≈ ${Math.round(a.cin)} J/kg`, C.dew); } },
+ { t: "Plafond thermique (vol libre)", focus: ["curves", "dry", "mixr", "levels"],
+   b: `<p>La méthode des parapentistes : on part de la <b>température maximale prévue</b> (Tx) au sol et on suit l'adiabatique sèche jusqu'à ce qu'elle recoupe la courbe rouge. Ce point donne le <b>plafond des thermiques</b>.</p>
+       <p>Si la bulle atteint le NCA avant, les thermiques sont coiffés de <b>cumulus</b> et le plafond est la base des nuages. Sinon ce sont des <b>thermiques bleus</b>, sans nuage pour les repérer.</p>
+       <p>Faites varier la Tx :</p>`,
+   actions: txActions,
+   annot() { const a = S.an, g = S.geom; ring(a.thT0, a.thP0, C.accent);
+     if (!a.thermalTopP) { tag(g.x(a.thT0, a.thP0), g.y(a.thP0) - 30, "Air trop stable :\npas de thermique", C.accent); return; }
+     const th = theta(a.thT0, a.thP0), tp = a.thermalTopP, Tt = a.cumulus ? a.sfcLcl.T : tFromTheta(th, tp);
+     hiLine(pRange(a.thP0, tp, 12).map(p => [tFromTheta(th, p), p]), C.accent); ring(Tt, tp, C.accent);
+     tag(g.x(Tt, tp), g.y(tp), `${a.cumulus ? "Base des cumulus" : "Plafond des thermiques bleus"}\n${fmtZ(envZ(tp))} (${a.relief ? `départ ${fmtZ(envZ(a.thP0))}` : "Tx"} ${fr(a.thT0)} °C)`, C.accent); } },
+ { t: "Le vent en altitude", focus: ["wind"],
+   b: `<p>À droite, une <b>barbule</b> par niveau. La hampe pointe vers la direction <b>d'où vient</b> le vent. Demi-barbe = 5 nœuds, barbe = 10 nœuds, fanion = 50 nœuds (1 nœud ≈ 1,85 km/h).</p>
+       <p>Un vent qui forcit ou tourne vite avec l'altitude (<b>cisaillement</b>) organise les orages et rend les thermiques turbulents.</p>`,
+   annot() { const g = S.geom, w = windAtP(850) || S.snd.wind[0]; if (!w || !g.showWind) return;
+     tag(g.right, g.y(w.p), `${Math.round(w.dir)}° · ${Math.round(w.spd)} kt\n≈ ${Math.round(w.spd * 1.852)} km/h`, C.ink, "left"); } },
+ { t: "Votre lecture en 5 questions", focus: null,
+   b: `<ol class="tut-list">
+       <li><b>Au sol</b> : quelle Tx prévue, quel point de rosée ?</li>
+       <li><b>Plafond</b> : où la sèche partant de la Tx recoupe-t-elle la courbe ? Cumulus ou thermiques bleus ?</li>
+       <li><b>Couvercles</b> : y a-t-il une inversion ou une couche stable ?</li>
+       <li><b>Orages</b> : quelle CAPE, quelle CIN, à quelle hauteur le NE ?</li>
+       <li><b>Altitude</b> : couches humides (étalements, voile) et force du vent.</li></ol>
+       <p>Ensuite, survolez le diagramme pour lire les valeurs et jouez avec le curseur Tx pour tester vos hypothèses.</p>` },
+];
+function tutAnnot(g) { if (!S.tut) return; const st = curSteps()[S.tut.i]; if (st.annot) try { st.annot(g); } catch (e) { console.warn(e); } }
+function renderStep() { renderText(); draw(); }
+function renderText() {
+  const T = curSteps(), i = S.tut.i, st = T[i];
+  $("tutH").textContent = S.tut.mode === "read" ? "Lecture commentée" : "Didacticiel";
+  $("tutN").textContent = `${i + 1} / ${T.length}`; $("tutT").textContent = st.t;
+  let body; try { body = typeof st.b === "function" ? st.b() : st.b; } catch (e) { console.warn(e); body = "<p>Lecture impossible pour ce sondage.</p>"; }
+  $("tutB").innerHTML = body;
+  const acts = typeof st.actions === "function" ? st.actions() : st.actions;
+  const A = $("tutA"); A.innerHTML = ""; A.hidden = !acts;
+  (acts || []).forEach(([l, f]) => { const b = document.createElement("button"); b.type = "button"; b.className = "ghost sm"; b.textContent = l; b.addEventListener("click", f); A.appendChild(b); });
+  $("tutP").disabled = i === 0; $("tutNx").textContent = i === T.length - 1 ? "Terminer" : "Suivant →";
+  $("tutDots").innerHTML = T.map((s, k) => `<button type="button" class="dot${k === i ? " on" : ""}" data-k="${k}" aria-label="Étape ${k + 1} : ${s.t}" title="${s.t}"></button>`).join("");
+}
+function startTut() {
+  if (S.tut && S.tut.mode === "tut") return; if (S.tut) exitTut();
+  S.tut = { mode: "tut", i: 0, saved: { raw: S.lastRaw, dataset: S.dataset, hourIdx: S.hourIdx, hourOptions: $("hourSel").innerHTML, tx: S.tx, tdx: S.tdx, ptype: S.ptype, pTop: S.pTop } };
+  S.tut.saved.relief = S.relief.on; S.relief.on = false; $("rOn").checked = false;
+  S.ptype = "sfc"; $("ptype").value = "sfc"; S.pTop = 100; $("pTop").value = "100"; $("hourSel").innerHTML = "<option>Didacticiel</option>";
+  setSounding(structuredClone(EXAMPLE), false);
+  $("tut").hidden = false; renderStep(); $("tut").scrollIntoView({ block: "nearest" });
+}
+function exitTut() {
+  if (!S.tut) return;
+  if (S.tut.mode === "read") { S.tut = null; $("tut").hidden = true; draw(); return; }
+  const s = S.tut.saved; S.tut = null; $("tut").hidden = true;
+  S.relief.on = !!s.relief; $("rOn").checked = S.relief.on;
+  S.ptype = s.ptype; $("ptype").value = s.ptype; S.pTop = s.pTop; $("pTop").value = String(s.pTop); S.tx = s.tx; S.tdx = s.tdx;
+  S.dataset = s.dataset; $("hourSel").innerHTML = s.hourOptions;
+  if (s.dataset) showHour(s.hourIdx, true); else setSounding(s.raw, true);
+}
+$("tutBtn").addEventListener("click", startTut);
+$("tutX").addEventListener("click", exitTut);
+$("tutP").addEventListener("click", () => { if (S.tut && S.tut.i > 0) { S.tut.i--; renderStep(); } });
+$("tutNx").addEventListener("click", () => { if (!S.tut) return; if (S.tut.i < curSteps().length - 1) { S.tut.i++; renderStep(); } else exitTut(); });
+$("tutDots").addEventListener("click", e => { const k = e.target.dataset && e.target.dataset.k; if (S.tut && k !== undefined) { S.tut.i = +k; renderStep(); } });
+document.addEventListener("keydown", e => { if (!S.tut || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  if (e.key === "ArrowRight") $("tutNx").click(); else if (e.key === "ArrowLeft") $("tutP").click(); else if (e.key === "Escape") exitTut(); });
+
+// ---------- Lecture commentée du sondage chargé ----------
+const curSteps = () => S.tut && S.tut.mode === "read" ? READ : TUT;
+const zr = z => z === null || z === undefined || !isFinite(z) ? "—" : `${(Math.round(z / 10) * 10).toLocaleString("fr-FR")} m`;
+const DIRS = ["nord", "nord-est", "est", "sud-est", "sud", "sud-ouest", "ouest", "nord-ouest"];
+const dirName = d => DIRS[Math.round(((d % 360) + 360) % 360 / 45) % 8];
+const kmh = kt => Math.round(kt * 1.852);
+const deDir = d => { const n = dirName(d); return /^[aeiou]/.test(n) ? "d'" + n : "du " + n; };
+function lapseLayers() {
+  const L = S.snd.levels, out = [];
+  for (let i = 0; i < L.length - 1; i++) {
+    const a = L[i], b = L[i + 1], dz = b.z - a.z; if (!(dz > 0) || b.p < 150) continue;
+    const gam = (a.T - b.T) / dz * 100, Tm = (a.T + b.T) / 2, pm = Math.sqrt(a.p * b.p);
+    const gm = moistDTdp(Tm, pm) * pm * G / (RD * (Tm + 273.15)) * 100;
+    const cls = gam < 0 ? "inv" : gam < 0.3 ? "iso" : gam > 0.98 ? "abs" : gam > gm ? "cond" : "stab";
+    const last = out[out.length - 1];
+    if (last && last.cls === cls) { last.z1 = b.z; last.p1 = b.p; last.gmin = Math.min(last.gmin, gam); last.gmax = Math.max(last.gmax, gam); }
+    else out.push({ z0: a.z, z1: b.z, p0: a.p, p1: b.p, gmin: gam, gmax: gam, cls, sfc: i === 0 });
+  }
+  return out;
+}
+function moistGroups(test) {
+  const L = S.snd.levels.filter(l => l.Td !== null && l.p >= 150), out = []; let cur = null;
+  for (const l of L) { const sp = l.T - l.Td;
+    if (test(l, sp)) { if (cur) { cur.z1 = l.z; cur.spMin = Math.min(cur.spMin, sp); cur.spMax = Math.max(cur.spMax, sp); cur.lv.push(l); } else cur = { z0: l.z, z1: l.z, spMin: sp, spMax: sp, lv: [l] }; }
+    else if (cur) { out.push(cur); cur = null; } }
+  if (cur) out.push(cur); return out;
+}
+const humidGroups = () => moistGroups((l, sp) => sp <= (l.z - S.snd.zsfc > 6000 ? 6 : 3) && l.p < S.snd.psfc && l.p >= 200);
+const dryGroups = () => moistGroups((l, sp) => sp >= 15 && l.p < S.snd.psfc && l.p >= 300);
+const range = g => Math.abs(g.z1 - g.z0) < 50 ? `vers ${zr(g.z0)}` : `entre ${zr(g.z0)} et ${zr(g.z1)}`;
+function cloudKind(z) { const h = z - S.snd.zsfc; return h < 2000 ? "nuages bas (stratus, stratocumulus, brouillard près du sol)" : h < 6000 ? "nuages moyens (altocumulus, altostratus)" : "nuages élevés (cirrus, voile)"; }
+function thermalInfo() {
+  const a = S.an, base = a.relief ? S.relief.z : S.snd.zsfc, ref = a.relief ? `au-dessus du départ (${zr(base)})` : "au-dessus du sol";
+  if (!a.thermalTopP) return { kind: "none", base, short: a.relief ? `Même depuis la pente à ${zr(base)}, l'air est trop stable : pas de thermique avec cette chauffe.` : "Air stable près du sol : pas de thermique exploitable avec cette température." };
+  const top = envZ(a.thermalTopP), h = top - base;
+  if (h < 300) return { kind: "weak", top, h, base, short: `Thermiques${a.relief ? " de relief" : ""} quasi inexistants (plafond à ${zr(h)} ${ref}).` };
+  return a.cumulus ? { kind: "cu", top, h, base, short: `Thermiques${a.relief ? " de relief" : ""} jusqu'à ${zr(top)}, soit ${zr(h)} ${ref}, marqués par des cumulus.` }
+                   : { kind: "blue", top, h, base, short: `Thermiques bleus${a.relief ? " de relief" : ""} (sans cumulus) jusqu'à ${zr(top)}, soit ${zr(h)} ${ref}.` };
+}
+function capeCat(c) { return c < 300 ? "faible" : c < 1000 ? "modérée" : c < 2500 ? "forte" : "extrême"; }
+function stormInfo() {
+  const a = S.an;
+  if (a.lfcI < 0 || a.cape < 50) return { risk: 0, short: "Pas d'énergie disponible pour les orages." };
+  const cinTxt = a.cin > -25 ? "presque aucun verrou" : a.cin > -100 ? "un verrou modéré" : "un verrou fort";
+  const risk = a.cape >= 300 && a.cin > -100 ? (a.cape >= 1000 ? 2 : 1) : 0;
+  return { risk, short: `CAPE ${capeCat(a.cape)} (${Math.round(a.cape)} J/kg) avec ${cinTxt} (CIN ${Math.round(a.cin)} J/kg)${risk === 2 ? " : orages probables si la convection se déclenche." : risk === 1 ? " : averses ou orages isolés possibles." : "."}` };
+}
+function windsBelow(zmax) { return S.snd.wind.filter(w => w.z - S.snd.zsfc <= zmax); }
+function windInfo() {
+  const low = windsBelow(4000); if (!low.length) return { short: "" };
+  const mx = low.reduce((a, b) => b.spd > a.spd ? b : a);
+  return { mx, short: `Vent le plus fort dans les 4 premiers kilomètres : ${Math.round(mx.spd)} kt (${kmh(mx.spd)} km/h) ${deDir(mx.dir)}, vers ${zr(mx.z)} d'altitude.` };
+}
+function diagInfo(a) { const d = a.diag; if (!d) return null;
+  if (d.kind === "norel") return { cls: "mute", title: "Pas de thermique de relief", text: `Même depuis la pente à ${zr(S.relief.z)}, l'air est trop stable avec +${fr(S.relief.dT)} °C de chauffe. Plafond retenu : sol.` };
+  if (d.kind === "lid") return { cls: "warn", title: "Couvercle sous les crêtes", text: `${d.zS === null ? "Pas de thermique depuis le fond de vallée." : `Les thermiques de vallée plafonnent vers ${zr(d.zS)}, sous la pente (${zr(S.relief.z)}).`} Au-dessus, seules les pentes ensoleillées portent, jusqu'à ${zr(d.zR)}. Plafond retenu : relief. Restez près du relief : transitions et atterrissage se font dans l'air stable du dessous.` };
+  return { cls: "good", title: "Couche brassée", text: `Les thermiques de vallée montent jusqu'à ${zr(d.zS)}, au-dessus de la pente (${zr(S.relief.z)}). Plafond retenu : sol, le plus fiable.${d.zR > d.zS + 100 ? ` Le plafond relief (${zr(d.zR)}) compte probablement la chauffe deux fois.` : ""}` };
+}
+const isLive = () => !!(S.lastRaw && S.lastRaw.live);
+const exNote = () => isLive() ? "" : `<p class="note">Vous lisez le profil d'exemple fictif. Chargez une prévision pour une lecture réelle.</p>`;
+const caution = `<p class="caution">Lecture automatique d'une prévision de modèle. Avant de voler ou de partir en montagne, confrontez-la aux bulletins officiels, aux balises et au ciel.</p>`;
+const ptypeNote = () => S.ptype === "sfc" ? "" : `<p class="note">Particule utilisée : ${S.ptype === "ml" ? "couche mélangée sur 50 hPa" : "niveau le plus instable"} (départ ${Math.round(S.an.p0)} hPa).</p>`;
+
+const READ = [
+ { t: "Vue d'ensemble", focus: null,
+   b() { const a = S.an, s = S.snd;
+     return `<p><b>${$("dTitle").textContent}</b></p>
+       <p>Sol à ${zr(s.zsfc)} : ${fr(a.sfcT)} °C, point de rosée ${fr(a.sfcTd)} °C, humidité ${Math.round(rh(a.sfcT, a.sfcTd))} %.</p>
+       <ul><li>${thermalInfo().short}</li>${diagInfo(a) ? `<li><b>${diagInfo(a).title}</b> (sol ${zr(a.diag.zS)}, relief ${zr(a.diag.zR)}).</li>` : ""}<li>${stormInfo().short}</li>${windInfo().short ? `<li>${windInfo().short}</li>` : ""}</ul>
+       <p>Les étapes suivantes détaillent chaque point sur le diagramme. Le texte se met à jour si vous changez d'échéance ou de Tx.</p>${exNote()}`; } },
+ { t: "Au sol et près du sol", focus: ["curves", "dry"],
+   b() { const a = S.an, sp = a.sfcT - a.sfcTd, Ls = lapseLayers(), s0 = Ls[0]; const hh = isLive() && S.dataset ? +(S.dataset.times[S.hourIdx] || "").slice(11, 13) : null;
+     let hum = sp < 3 ? "L'air est presque saturé au sol : brume, brouillard ou nuages bas possibles." : sp > 15 ? "L'air est très sec au sol." : "L'humidité au sol est moyenne.";
+     let bl = "";
+     if (s0) { const z1 = zr(s0.z1), g = fr(s0.gmax);
+       bl = s0.cls === "abs" ? `Entre le sol et ${z1}, la température baisse de ${g} °C / 100 m, plus vite que l'adiabatique sèche : l'air chauffé par le sol se brasse, c'est typique d'une journée ensoleillée.`
+          : s0.cls === "inv" || s0.cls === "iso" ? `<b>Inversion au sol</b> jusqu'à ${z1} : l'air froid reste piégé près du sol (nuit, matinée, fond de vallée). Pas de thermique tant que le soleil ne l'a pas détruite.`
+          : `Entre le sol et ${z1}, le gradient est de ${fr(s0.gmin)} °C / 100 m : l'air est stable à faiblement brassé.`; }
+     const hint = hh !== null && (hh < 12 || hh > 17) ? `<p class="note">Échéance de ${hh} h : pour le plafond de l'après-midi, passez à 14 h–16 h ou réglez la Tx prévue avec le curseur.</p>` : "";
+     return `<p>La bulle part de <b>${fr(a.sfcT)} °C</b> ${S.tx !== null ? "(valeur que vous avez réglée)" : "(valeur du modèle à cette heure)"}. La ligne verte surlignée est l'adiabatique sèche qu'elle suivra.</p><p>${hum}</p><p>${bl}</p>${hint}`; },
+   annot() { TUT[3].annot(); } },
+ { t: "Stabilité et couvercles", focus: ["curves", "dry", "moist"],
+   b() { const Ls = lapseLayers().filter(l => !l.sfc), zs = S.snd.zsfc;
+     const lids = Ls.filter(l => (l.cls === "inv" || l.cls === "iso") && l.z0 - zs < 9000);
+     const tropo = Ls.find(l => (l.cls === "inv" || l.cls === "iso") && l.z0 - zs >= 9000);
+     const abs = Ls.filter(l => l.cls === "abs");
+     const cond = Ls.filter(l => l.cls === "cond" && l.z1 - l.z0 > 800);
+     let h = "<ul>"; const s0 = lapseLayers()[0];
+     if (s0 && (s0.cls === "inv" || s0.cls === "iso")) h += `<li><b>Inversion au sol</b> jusqu'à ${zr(s0.z1)} (voir l'étape précédente).</li>`;
+     if (lids.length) lids.forEach(l => h += `<li><b>${l.cls === "inv" ? "Inversion" : "Couche isotherme"}</b> ${range(l)} (${fr(l.gmin)} °C / 100 m) : couvercle qui freine thermiques et nuages.</li>`);
+     else h += "<li>Aucune inversion nette en altitude : rien ne bloque franchement l'ascendance au-dessus.</li>";
+     abs.forEach(l => h += `<li><b>Couche instable</b> ${range(l)} (${fr(l.gmax)} °C / 100 m) : l'air y monte de lui-même.</li>`);
+     if (cond.length) h += `<li><b>Instabilité conditionnelle</b> ${cond.map(range).join(", ")} : instable seulement pour de l'air saturé, donc dans les nuages.</li>`;
+     if (tropo) h += `<li>Tropopause vers ${zr(tropo.z0)} : plafond physique des orages.</li>`;
+     return `<p>Couleurs sur la courbe : <b style="color:var(--bad)">instable</b>, <b style="color:var(--warn)">conditionnelle</b>, <b style="color:var(--good)">stable</b>.</p>${h}</ul>`; },
+   annot() { TUT[7].annot(); } },
+ { t: "Humidité et nuages", focus: ["curves"],
+   b() { const H = humidGroups(), D = dryGroups(), pw = S.an.pw;
+     let h = "<ul>";
+     if (H.length) H.forEach(g => h += `<li><b>Couche humide</b> ${range(g)} (écart T–Td ${fr(g.spMin)} °C) : ${cloudKind((g.z0 + g.z1) / 2)} probables.</li>`);
+     else h += "<li>Aucune couche proche de la saturation : peu ou pas de nuages en dehors des cumulus.</li>";
+     D.forEach(g => h += `<li><b>Air très sec</b> ${range(g)} (écart jusqu'à ${fr(g.spMax)} °C) : il ronge les nuages ; sous un orage, il renforce les rafales descendantes.</li>`);
+     h += `<li>Eau précipitable : <b>${fr(pw)} mm</b>, ${pw < 15 ? "atmosphère sèche" : pw < 30 ? "humidité moyenne" : "atmosphère très humide, pluies fortes possibles sous les orages"}.</li></ul>`;
+     return `<p>On compare les courbes rouge et bleue niveau par niveau.</p>${h}`; },
+   annot() { const g = S.geom; let n = 0; for (const grp of humidGroups()) { const l = grp.lv[0]; ring(l.Td, l.p, C.dew); if (n++ < 3) tag(g.x(l.Td, l.p), g.y(l.p), `Humide ${range(grp)}`, C.dew, "left"); }
+     for (const grp of dryGroups().slice(0, 2)) { const l = grp.lv.reduce((a, b) => (b.T - b.Td > a.T - a.Td ? b : a)); ring(l.Td, l.p, C.muted); tag(g.x(l.Td, l.p), g.y(l.p), `Sec ${range(grp)}`, C.muted, "left"); } } },
+ { t: "Thermiques et plafond", focus: ["curves", "dry", "mixr", "levels"],
+   actions() { return S.relief.on
+     ? [["Chauffe −1 °C", () => setRelief({ dT: S.relief.dT - 1 })], ["Chauffe +1 °C", () => setRelief({ dT: S.relief.dT + 1 })], ["Départ −200 m", () => setRelief({ z: S.relief.z - 200 })], ["Départ +200 m", () => setRelief({ z: S.relief.z + 200 })], ["Départ du sol", () => setRelief({ on: false })]]
+     : [["Tx −2 °C", () => setTx(Math.round((S.an.sfcT - 2) * 2) / 2)], ["Tx +2 °C", () => setTx(Math.round((S.an.sfcT + 2) * 2) / 2)], ["Tx du modèle", () => setTx(null)], ["Thermiques de relief", () => setRelief({ on: true })]]; },
+   b() { const a = S.an, ti = thermalInfo();
+     let h = a.relief ? `<p>La bulle part d'une <b>pente à ${zr(S.relief.z)}</b> : air libre ${fr(a.thT0 - S.relief.dT)} °C + ${fr(S.relief.dT)} °C de chauffe = <b>${fr(a.thT0)} °C</b>.</p>` : "";
+     const di = diagInfo(a); if (di) h += `<p><span class="pill ${di.cls}">${di.title}</span> ${di.text}</p>`;
+     h += `<p>${ti.short}</p>`;
+     const lclZ = envZ(a.sfcLcl.p);
+     const trial = k => a.relief ? thermalFrom(a.thP0, a.thT0 + k, a.thTd0) : thermalFrom(a.thP0, a.thT0 + k, Math.min(a.sfcTd, a.thT0 + k));
+     const what = k => a.relief ? `une chauffe de pente d'environ <b>+${fr(S.relief.dT + k)} °C</b>` : `une Tx d'environ <b>${fr(a.thT0 + k)} °C</b>`;
+     if (ti.kind === "blue" || ti.kind === "weak") {
+       h += `<p>La condensation n'aurait lieu qu'à ${zr(lclZ)} : la bulle s'arrête avant, d'où l'absence de cumulus.</p>`;
+       for (let k = 0.5; k <= 15; k += 0.5) if (trial(k).cu) { h += `<p>Des cumulus apparaîtraient avec ${what(k)}.</p>`; break; }
+     } else if (ti.kind === "cu") {
+       h += `<p>Base des cumulus : <b>${zr(lclZ)}</b>.${a.cape >= 300 && a.cin > -50 ? " <b>Attention</b> : avec la CAPE disponible, ils peuvent grossir en congestus puis en cumulonimbus (surdéveloppement)." : " Peu d'énergie au-dessus : cumulus plutôt plats."}</p>`;
+     } else {
+       for (let k = 0.5; k <= 15; k += 0.5) { const r = trial(k); if (r.ceil && envZ(r.cu ? r.lcl : r.ceil) - ti.base > 500) { h += `<p>Il faudrait ${what(k)} pour des thermiques dépassant 500 m.</p>`; break; } }
+     }
+     const s0 = lapseLayers()[0];
+     if (!S.relief.on && s0 && (s0.cls === "inv" || s0.cls === "iso")) h += `<p class="note">Inversion au sol : en montagne, les thermiques partent souvent des pentes ensoleillées au-dessus. Essayez « Thermiques de relief ».</p>`;
+     if (ti.top) { const ws = S.snd.wind.filter(w => w.z >= ti.base - 50 && w.z <= ti.top + 50); if (ws.length) { const m = ws.reduce((x, y) => y.spd > x.spd ? y : x);
+       h += `<p>Vent dans la couche des thermiques : jusqu'à ${Math.round(m.spd)} kt (${kmh(m.spd)} km/h) ${deDir(m.dir)}${m.spd > 15 ? ", thermiques cisaillés et turbulents probables" : ""}.</p>`; } }
+     return h; },
+   annot() { TUT[11].annot(); } },
+ { t: "Orages", focus: ["parcel", "curves", "cape", "cin", "levels"],
+   b() { const a = S.an, si = stormInfo(); let h = `<p>${si.short}</p><ul>`;
+     if (a.lfcI >= 0 && a.cape >= 50) {
+       h += `<li>Convection libre à partir de ${zr(envZ(a.lfc))} (NCL).</li>`;
+       const Tel = envT(a.el); h += `<li>Niveau d'équilibre vers ${zr(envZ(a.el))}${Tel !== null ? ` (${Math.round(Tel)} °C)` : ""} : altitude probable du sommet des cumulonimbus.</li>`; }
+     if (a.LI !== null) h += `<li>Lifted Index ${fr(a.LI)} : ${a.LI < -6 ? "très instable" : a.LI < -3 ? "instable" : a.LI < 0 ? "faiblement instable" : "stable"}.</li>`;
+     const noCape = a.lfcI < 0 || a.cape < 50;
+     if (a.K !== null) h += `<li>Indice K ${fr(a.K)} : ${a.K < 20 ? "orages peu probables" : a.K < 30 ? "orages isolés possibles" : a.K < 35 ? "orages dispersés" : "orages nombreux"}${noCape && a.K >= 20 ? " d'après cet indice, mais sans CAPE il ne suffit pas" : ""}.</li>`;
+     if (a.shear !== null) h += `<li>Cisaillement 0–6 km ${Math.round(a.shear)} kt : ${noCape ? (a.shear >= 35 ? "vent fort en altitude, sans conséquence orageuse faute d'énergie" : "faible à modéré") : a.shear < 20 ? "orages peu organisés, de courte durée" : a.shear < 35 ? "orages multicellulaires possibles" : "orages organisés possibles, supercellules si la CAPE est forte"}.</li>`;
+     return h + `</ul>${ptypeNote()}`; },
+   annot() { const a = S.an; TUT[9].annot(); if (a.lfcI >= 0 && a.cin < -1) TUT[10].annot(); } },
+ { t: "Vent et isotherme 0 °C", focus: ["wind", "iso"],
+   b() { const a = S.an, zs = S.snd.zsfc; let h = "<ul>";
+     const pick = [S.snd.wind[0], ...[850, 700, 500, 300].map(p => p < S.snd.psfc ? windAtP(p) : null)].filter((w, i, arr) => w && arr.indexOf(w) === i);
+     pick.forEach(w => h += `<li>${w === S.snd.wind[0] ? "Sol" : `${Math.round(w.p)} hPa`} (${zr(w.z)}) : ${dirName(w.dir)}, ${Math.round(w.spd)} kt (${kmh(w.spd)} km/h)</li>`);
+     h += "</ul>";
+     const wi = windInfo(); if (wi.short) h += `<p>${wi.short}</p>`;
+     h += `<p>Isotherme 0 °C : <b>${a.frz === "sol" ? "au sol" : a.frz === null ? "non trouvée" : zr(a.frz)}</b>${typeof a.frz === "number" ? " : neige au-dessus en cas de précipitations, givrage possible dans les nuages." : "."}</p>`;
+     return h; },
+   annot() { TUT[12].annot(); const a = S.an; if (typeof a.frz === "number") { const L = S.snd.levels;
+     for (let i = 0; i < L.length - 1; i++) if (L[i].T > 0 && L[i + 1].T <= 0) { const p = crossP(L[i].p, L[i + 1].p, L[i].T, L[i + 1].T); ring(0, p, C.iso); tag(S.geom.x(0, p), S.geom.y(p), `0 °C · ${zr(a.frz)}`, C.iso); break; } } } },
+ { t: "Synthèse", focus: null,
+   b() { const ti = thermalInfo(), si = stormInfo(), wi = windInfo(), lids = lapseLayers().filter(l => (l.cls === "inv" || l.cls === "iso") && l.z0 - S.snd.zsfc < 9000), H = humidGroups();
+     return `<ul><li>${ti.short}</li>${diagInfo(S.an) ? `<li><b>${diagInfo(S.an).title}</b> : plafond sol ${zr(S.an.diag.zS)}, plafond relief ${zr(S.an.diag.zR)}.</li>` : ""}
+       <li><b>Couvercle</b> : ${lids.length ? lids.map(l => l.sfc ? `inversion au sol jusqu'à ${zr(l.z1)}` : `${l.cls === "inv" ? "inversion" : "isotherme"} ${range(l)}`).join(", ") : "aucun marqué"}.</li>
+       <li><b>Nuages</b> : ${H.length ? H.map(g => `${range(g)}`).join(", ") : "pas de couche humide hors cumulus"}.</li>
+       <li>${si.short}</li>${wi.short ? `<li>${wi.short}</li>` : ""}</ul>${caution}${exNote()}`; } },
+];
+function startRead() {
+  if (S.tut && S.tut.mode === "tut") exitTut();
+  S.tut = { mode: "read", i: S.tut && S.tut.mode === "read" ? S.tut.i : 0 };
+  $("tut").hidden = false; renderStep(); $("tut").scrollIntoView({ block: "nearest" });
+}
+$("readBtn").addEventListener("click", startRead);
+$("glossBtn").addEventListener("click", () => $("gloss").scrollIntoView({ block: "start" }));
+function setRelief(patch) {
+  Object.assign(S.relief, patch); S.relief.dT = Math.max(-2, Math.min(12, S.relief.dT)); S.relief.z = Math.max(0, Math.min(5000, S.relief.z));
+  $("rOn").checked = S.relief.on; $("rZ").value = S.relief.z; $("rDT").value = S.relief.dT;
+  try { localStorage.setItem("emagramme-relief", JSON.stringify(S.relief)); } catch {}
+  recompute();
+}
+$("rOn").addEventListener("change", e => setRelief({ on: e.target.checked }));
+$("rZ").addEventListener("change", e => { if (isFinite(+e.target.value)) setRelief({ z: +e.target.value, on: true }); });
+$("rDT").addEventListener("change", e => { if (isFinite(+e.target.value)) setRelief({ dT: +e.target.value }); });
+$("rOn").checked = S.relief.on; $("rZ").value = S.relief.z; $("rDT").value = S.relief.dT;
+
+// ---------- Sites de vol : recherche, prévision, note ----------
+const SP = { map: null, layer: null, takeoffs: [], landings: [], data: [], times: [], hour: 0, center: null };
+const toRad = d => d * Math.PI / 180;
+function distKm(a, b, c, d) { const x = Math.sin(toRad(c - a) / 2) ** 2 + Math.cos(toRad(a)) * Math.cos(toRad(c)) * Math.sin(toRad(d - b) / 2) ** 2; return 12742 * Math.asin(Math.sqrt(x)); }
+const ORI = { N: 0, NNE: 22.5, NE: 45, ENE: 67.5, E: 90, ESE: 112.5, SE: 135, SSE: 157.5, S: 180, SSO: 202.5, SSW: 202.5, SO: 225, SW: 225, OSO: 247.5, WSW: 247.5, O: 270, W: 270, ONO: 292.5, WNW: 292.5, NO: 315, NW: 315, NNO: 337.5, NNW: 337.5 };
+const ABBR = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
+const abbr = d => ABBR[Math.round(((d % 360) + 360) % 360 / 45) % 8];
+function parseOri(str) { if (str === undefined || str === null) return [];
+  return String(str).toUpperCase().split(/[;,\/\s-]+/).map(t => t.trim()).filter(Boolean).map(t => /^\d+(\.\d+)?$/.test(t) ? +t : ORI[t]).filter(v => v !== undefined); }
+const angDiff = (a, b) => { const d = Math.abs(((a - b) % 360 + 360) % 360); return d > 180 ? 360 - d : d; };
+function spotMsg(t, kind) { const m = $("spotsMsg"); m.hidden = !t; m.className = "msg " + (kind || ""); m.textContent = t || ""; }
+const esc = t => String(t ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+async function getJSON(url, ms = 25000, opts = {}) { const c = new AbortController(), to = setTimeout(() => c.abort(), ms);
+  let r;
+  try { r = await fetch(url, { ...opts, signal: c.signal }); }
+  catch (e) { clearTimeout(to); throw new Error(e.name === "AbortError" ? "délai dépassé" : "accès bloqué (réseau ou autorisation du serveur)"); }
+  try {
+    if (!r.ok) throw new Error(r.status === 429 ? "serveur saturé (HTTP 429)" : r.status === 403 ? "accès refusé (HTTP 403)" : `HTTP ${r.status}`);
+    let d; try { d = await r.json(); } catch { throw new Error("réponse illisible"); }
+    if (d && d.error) throw new Error(d.reason || "erreur"); return d;
+  } finally { clearTimeout(to); } }
+const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter"];
+
+async function fetchOSM(lat, lon, rkm) {
+  const a = `(around:${Math.round(rkm * 1000)},${lat},${lon})`;
+  const q = `[out:json][timeout:15];(nwr["free_flying:site"]${a};nwr["sport"="free_flying"]${a};);out center tags;`;
+  let d = null; const errs = [];
+  for (const u of OVERPASS) {
+    try { d = await getJSON(u, 15000, { method: "POST", body: "data=" + encodeURIComponent(q), headers: { "Content-Type": "application/x-www-form-urlencoded" } }); break; }
+    catch (e) { errs.push(`${new URL(u).hostname} : ${e.message}`); console.warn("Overpass", u, e); }
+  }
+  if (!d) throw new Error(errs.join(" ; "));
+  return (d.elements || []).map(e => { const t = e.tags || {}, la = e.lat ?? (e.center && e.center.lat), lo = e.lon ?? (e.center && e.center.lon); if (la == null || lo == null) return null;
+    if (t["free_flying:paragliding"] === "no") return null;
+    const nm = t.name || t["name:fr"] || ""; let k = (t["free_flying:site"] || "").toLowerCase();
+    const ori = parseOri(t["free_flying:site_orientation"] || t["free_flying:orientation"] || t.orientation);
+    let kind = /takeoff|launch|winch/.test(k) ? "takeoff" : /landing/.test(k) ? "landing" : "";
+    if (!kind) kind = /atterr|landing|atero/i.test(nm) ? "landing" : /d[ée]co|takeoff|take-off|envol/i.test(nm) || ori.length ? "takeoff" : "";
+    if (!kind) return null;
+    return { src: "OpenStreetMap", id: "osm-" + e.type + e.id, name: nm || (kind === "landing" ? "Atterrissage" : "Décollage"), lat: la, lon: lo, kind, ori,
+      alt: t.ele && isFinite(parseFloat(t.ele)) ? parseFloat(t.ele) : null, url: `https://www.openstreetmap.org/${e.type}/${e.id}` };
+  }).filter(Boolean);
+}
+async function fetchPGE(lat, lon, rkm) {
+  const d = await getJSON(`https://www.paraglidingearth.com/api/geojson/getAroundLatLngSites.php?lat=${lat}&lng=${lon}&distance=${Math.round(rkm)}&limit=150&style=detailled`, 8000);
+  const out = [];
+  (d.features || []).forEach((f, n) => { const p = f.properties || {}, c = f.geometry && f.geometry.coordinates; if (!c || !isFinite(+c[0])) return;
+    if (p.paragliding === 0 || p.paragliding === "0") return;
+    const ori = []; const o = p.orientations || {}; for (const k in o) if (+o[k] > 0 && k.toUpperCase() in ORI) ori.push(ORI[k.toUpperCase()]);
+    const id = p.pge_site_id || p.id || n, url = p.pge_link || `https://www.paraglidingearth.com/?site=${id}`;
+    out.push({ src: "ParaglidingEarth", id: "pge-" + id, name: p.name || "Site", lat: +c[1], lon: +c[0], kind: "takeoff", ori, alt: +p.takeoff_altitude || null, url });
+    const L = p.landing || {}, lla = +(p.landing_lat ?? L.lat), llo = +(p.landing_lng ?? p.landing_lon ?? L.lng ?? L.lon);
+    if (isFinite(lla) && isFinite(llo) && lla && llo) out.push({ src: "ParaglidingEarth", id: "pgeL-" + id, name: (p.name || "Site") + " (atterrissage)", lat: lla, lon: llo, kind: "landing", ori: [], alt: +p.landing_altitude || null, url });
+  });
+  return out;
+}
+function mergeSites(list) {
+  const kept = [];
+  for (const s of list) {
+    const twin = kept.find(k => k.kind === s.kind && distKm(k.lat, k.lon, s.lat, s.lon) < 0.25);
+    if (twin) { if (!twin.ffvl) s.ori.forEach(o => { if (!twin.ori.includes(o)) twin.ori.push(o); }); if (twin.alt == null) twin.alt = s.alt;
+      if (/^(Décollage|Atterrissage)$/.test(twin.name) && !/^(Décollage|Atterrissage)$/.test(s.name)) twin.name = s.name; twin.src2 = s.src; twin.url2 = s.url; }
+    else kept.push({ ...s });
+  }
+  return kept;
+}
+const FVARS = () => { const v = ["temperature_2m", "dew_point_2m", "surface_pressure", "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m", "precipitation", "cloud_cover_low"];
+  for (const L of LEVELS) for (const n of ["temperature", "relative_humidity", "geopotential_height", "wind_speed", "wind_direction"]) v.push(`${n}_${L}hPa`); return v.join(","); };
+function spotUrl(list, elev) {
+  return `https://api.open-meteo.com/v1/forecast?latitude=${list.map(s => s.lat.toFixed(4)).join(",")}&longitude=${list.map(s => s.lon.toFixed(4)).join(",")}`
+    + (elev ? "&elevation=" + list.map(() => "nan").join(",") : "") + `&models=${$("model").value}&hourly=${FVARS()}&wind_speed_unit=kn&timezone=auto&forecast_days=2`;
+}
+function datasetOf(d) { const H = d.hourly; const gv = n => H[n] ?? H[Object.keys(H).find(k => k.startsWith(n + "_"))];
+  return { d, gv, model: MODEL_NAMES[$("model").value] || "Modèle", lat: d.latitude, lon: d.longitude, elev: d.elevation, times: H.time }; }
+
+function analyzeSpot(site, D, i) {
+  const save = { snd: S.snd, tx: S.tx, tdx: S.tdx, ptype: S.ptype, relief: S.relief };
+  try {
+    const snd = prepare(sndFromHour(i, D)); S.snd = snd; S.tx = null; S.tdx = null; S.ptype = "sfc";
+    const z = site.alt ?? snd.zsfc; S.relief = { on: true, z, dT: +$("spotDT").value || 3 };
+    const a = analyze();
+    let w = windAtZ(z); if (!w && snd.wind.length) w = z < snd.wind[0].z ? snd.wind[0] : null;
+    const wind = w ? { spd: Math.hypot(w.u, w.v), dir: ((Math.atan2(-w.u, -w.v) * 180 / Math.PI) + 360) % 360 } : null;
+    const pz = pAtZ(z), Tz = pz ? envT(pz) : (z <= snd.zsfc ? snd.levels[0].T : null), Tdz = pz ? envTd(pz) : (z <= snd.zsfc ? snd.levels[0].Td : null);
+    const at = n => { const arr = D.gv(n); return arr ? arr[i] : null; };
+    let exc = null, wmax = null; const topP = a.thermalTopP;
+    if (topP) { const z0 = envZ(a.thP0) ?? z, zt = envZ(topP), th = theta(a.thT0, a.thP0); let sum = 0, n = 0;
+      for (let p = a.thP0; p >= topP; p -= 5) { const Te = envT(p); if (Te === null) continue; sum += tFromTheta(th, p) - Te; n++; }
+      exc = n ? sum / n : null;
+      const ws = snd.wind.filter(w => w.z >= z0 - 50 && w.z <= zt + 50); if (ws.length) wmax = Math.max(...ws.map(w => w.spd)) * 1.852; }
+    return { exc, wmax, a, z, wind, spread: Tz !== null && Tdz !== null ? Tz - Tdz : null, gust: at("wind_gusts_10m"), rain: at("precipitation"), low: at("cloud_cover_low"),
+      ceilZ: a.thermalTopP ? envZ(a.thermalTopP) : null, prim: a.relief ? "relief" : "sol", diag: a.diag ? a.diag.kind : null };
+  } finally { Object.assign(S, save); }
+}
+const clamp01 = v => Math.max(0, Math.min(1, v));
+const cls100 = v => v >= 70 ? "good" : v >= 40 ? "warn" : "bad";
+function scoreSpot(site, r, obs) {
+  // ---- Note décollage
+  const wd = []; let D = 100; const dpen = (p, t, c) => { D -= p; wd.push({ t, cls: c }); };
+  const useObs = !!(obs && obs.use), W = useObs ? { spd: obs.avg / 1.852, dir: obs.dir } : r.wind;
+  const kmh = W ? W.spd * 1.852 : null;
+  const F = site.ffvl;
+  if (F) { if (F.st === "interdit") dpen(100, "Site interdit (FFVL)", "bad"); else if (F.st === "interdit_sauf_autorisation") dpen(100, "Interdit sauf autorisation (FFVL)", "bad");
+    else if (F.st === "actif_autorisation_systematique_requise") dpen(5, "Autorisation systématique requise (FFVL)", "warn");
+    if (F.al) wd.push({ t: "Alerte FFVL : " + F.al, cls: "bad" }); }
+  if (r.rain !== null && r.rain >= 1) dpen(60, `Pluie (${fr(r.rain)} mm/h)`, "bad"); else if (r.rain !== null && r.rain >= 0.2) dpen(30, `Averses ou bruine (${fr(r.rain)} mm/h)`, "warn");
+  if (kmh === null) dpen(10, "Vent au déco inconnu", "warn");
+  else { const wtxt = `${abbr(W.dir)} ${Math.round(kmh)} km/h${useObs ? " mesuré" : ""}`;
+    if (kmh > 30) dpen(60, `Vent trop fort au déco (${wtxt})`, "bad"); else if (kmh > 25) dpen(30, `Vent fort au déco (${wtxt})`, "warn"); else if (kmh > 20) dpen(15, `Vent soutenu au déco (${wtxt})`, "warn");
+    if (!site.ori.length) dpen(5, "Orientation du déco inconnue", "warn");
+    else if (kmh < 8) wd.push({ t: `Vent faible (${wtxt}) : brise thermique`, cls: "good" });
+    else { const d = Math.min(...site.ori.map(o => angDiff(o, W.dir)));
+      if (d <= 22.5) wd.push({ t: `Vent dans l'axe (${wtxt})`, cls: "good" }); else if (d <= 45) dpen(5, `Vent légèrement décalé (${wtxt})`, "good");
+      else if (d <= 90) dpen(15, `Vent de travers (${wtxt})`, "warn"); else dpen(kmh >= 15 ? 60 : 40, `Vent arrière au déco (${wtxt})`, "bad"); }
+    if (kmh <= 20 && wd.every(x => x.cls === "good")) wd.push({ t: "Force du vent compatible", cls: "good" }); }
+  if (W && kmh >= 8 && site.nok && site.nok.length && Math.min(...site.nok.map(o => angDiff(o, W.dir))) <= 22.5 && !(site.ori.length && Math.min(...site.ori.map(o => angDiff(o, W.dir))) <= 22.5))
+    dpen(30, `Vent ${abbr(W.dir)} déconseillé pour ce déco (FFVL)`, "bad");
+  const gk = useObs ? null : (r.gust !== null ? r.gust * 1.852 : null);
+  if (useObs) { if (obs.max > 40) dpen(40, `Rafales mesurées ${Math.round(obs.max)} km/h`, "bad"); else if (obs.max > 30) dpen(20, `Rafales mesurées ${Math.round(obs.max)} km/h`, "warn"); else if (obs.max - obs.avg > 15) dpen(10, "Vent rafaleux à la balise", "warn"); }
+  if (obs) wd.push({ t: beaconLine(obs) + (useObs ? " : utilisée pour la note" : " : non utilisée (heure, distance ou fraîcheur)"), cls: "info" });
+  if (gk !== null && gk > 45) dpen(40, `Rafales ${Math.round(gk)} km/h en plaine`, "bad"); else if (gk !== null && gk > 35) dpen(20, `Rafales ${Math.round(gk)} km/h en plaine`, "warn");
+  if (r.spread !== null && r.spread <= 1) dpen(30, "Déco probablement dans le nuage", "bad"); else if (r.low !== null && r.low >= 90 && r.spread !== null && r.spread <= 3) dpen(15, "Plafond nuageux bas", "warn");
+  const a = r.a, storm = a.lfcI >= 0 && a.cape >= 1000 && a.cin > -50, over = !storm && a.lfcI >= 0 && a.cape >= 300 && a.cin > -100;
+  if (storm) dpen(30, `Risque d'orage (CAPE ${Math.round(a.cape)})`, "bad"); else if (over) dpen(15, `Surdéveloppement possible (CAPE ${Math.round(a.cape)})`, "warn");
+  D = Math.round(Math.max(0, Math.min(100, D)));
+  // ---- Note thermique (en local, au-dessus du déco)
+  const wt = []; let T = 0;
+  const h = r.ceilZ !== null ? r.ceilZ - r.z : 0;
+  const hs = clamp01(h / 1500) * 55; T += hs;
+  wt.push(h > 0 ? { t: `${a.cumulus ? "Base des cumulus" : "Plafond"} ${zr(r.ceilZ)}, soit +${zr(h)} au-dessus du déco`, cls: h >= 1000 ? "good" : h >= 400 ? "warn" : "bad" } : { t: "Pas de thermique au-dessus du déco (plouf)", cls: "bad" });
+  if (h > 0 && r.exc !== null) { T += clamp01(r.exc / 1.5) * 25;
+    wt.push(r.exc >= 1 ? { t: "Thermiques francs", cls: "good" } : r.exc >= 0.5 ? { t: "Thermiques modérés", cls: "warn" } : { t: "Thermiques faibles", cls: "bad" }); }
+  if (r.low === null || r.low < 50) T += 10; else if (r.low < 80) { T += 5; wt.push({ t: `Soleil voilé (nuages bas ${Math.round(r.low)} %)`, cls: "warn" }); } else wt.push({ t: `Peu de soleil (nuages bas ${Math.round(r.low)} %)`, cls: "bad" });
+  if (h > 0) { if (a.cumulus && h >= 500) { T += 10; wt.push({ t: "Cumulus pour marquer les thermiques", cls: "good" }); } else if (!a.cumulus) { T += 5; wt.push({ t: "Thermiques bleus (sans cumulus)", cls: "warn" }); } }
+  if (r.diag === "lid") wt.push({ t: "Couvercle sous les crêtes : vallée stable, rester près du relief", cls: "warn" });
+  if (r.wmax !== null && r.wmax > 30) { T -= 25; wt.push({ t: `Vent fort dans la couche (${Math.round(r.wmax)} km/h)`, cls: "bad" }); }
+  else if (r.wmax !== null && r.wmax > 20) { T -= 12; wt.push({ t: `Thermiques cisaillés (vent ${Math.round(r.wmax)} km/h)`, cls: "warn" }); }
+  if (r.rain !== null && r.rain >= 1) { T -= 50; wt.push({ t: "Pluie", cls: "bad" }); } else if (r.rain !== null && r.rain >= 0.2) { T -= 25; wt.push({ t: "Averses", cls: "warn" }); }
+  if (storm) { T -= 30; wt.push({ t: "Risque d'orage", cls: "bad" }); } else if (over) { T -= 12; wt.push({ t: "Surdéveloppement possible", cls: "warn" }); }
+  if (h <= 0) T = Math.min(T, 10);
+  T = Math.round(Math.max(0, Math.min(100, T)));
+  const rank = D < 40 ? D / 2 : (D + T) / 2;
+  return { D, T, dc: cls100(D), tc: cls100(T), wd, wt, rank };
+}
+function nearestLanding(t) { let best = null, d = 1e9;
+  SP.landings.forEach(l => { const k = distKm(t.lat, t.lon, l.lat, l.lon); if (k < d) { d = k; best = l; } });
+  return best && d <= 8 ? { l: best, d } : null; }
+
+function initMap() {
+  if (SP.map) return true;
+  if (!window.L) { $("map").textContent = "Carte indisponible (bibliothèque non chargée). La liste reste utilisable."; return false; }
+  $("map").textContent = ""; $("map").style.display = "block";
+  SP.map = L.map("map", { scrollWheelZoom: true }).setView([SP.center.lat, SP.center.lon], 11);
+  const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { maxZoom: 17, subdomains: "abc", attribution: "© OpenStreetMap, SRTM | © OpenTopoMap (CC-BY-SA)" });
+  const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" });
+  const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 18, attribution: "© Esri" });
+  topo.addTo(SP.map); L.control.layers({ "Topographique": topo, "OpenStreetMap": osm, "Satellite": sat }).addTo(SP.map);
+  SP.layer = L.layerGroup().addTo(SP.map); return true;
+}
+function popupHtml(t) { const r = t.res, sc = t.sc, nl = nearestLanding(t);
+  const li = arr => `<ul class="why">${arr.map(w => `<li class="${w.cls}">${esc(w.t)}</li>`).join("")}</ul>`;
+  return `<div class="pop"><h4>${esc(t.name)}</h4><div class="meta">${t.alt != null ? Math.round(t.alt) + " m" : "alt. ?"} · ${t.ori.length ? [...new Set(t.ori.map(abbr))].join(", ") : "orientation ?"} · ${fr(t.dist)} km · plafond ${r.prim}</div>${ffvlHtml(t)}
+    <div class="why-h">Décollage <span class="score ${sc.dc}">${sc.D}</span></div>${li(sc.wd)}
+    <div class="why-h">Thermique en local <span class="score ${sc.tc}">${sc.T}</span></div>${li(sc.wt)}
+    <div class="meta">${nl ? `Atterro le plus proche : ${esc(nl.l.name)} (${fr(nl.d)} km${nl.l.alt != null && t.alt != null ? `, ${Math.round(t.alt - nl.l.alt)} m de dénivelé` : ""})` : "Pas d'atterrissage référencé à moins de 8 km"}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button type="button" class="sm" data-spot="${esc(t.id)}">Voir le sondage</button><a href="${esc(t.url)}" target="_blank" rel="noopener">${t.src === "FFVL" ? "Rechercher le site sur ffvl.fr" : "Fiche " + esc(t.src)} ↗</a></div></div>`; }
+function renderSpots() {
+  const list = SP.takeoffs.filter(t => t.sc).sort((a, b) => b.sc.rank - a.sc.rank || a.dist - b.dist);
+  const tb = $("spotTbl").tBodies[0];
+  tb.innerHTML = list.length ? list.map(t => { const r = t.res, w = r.wind, sc = t.sc;
+    const worst = [...sc.wd, ...sc.wt].find(x => x.cls === "bad") || [...sc.wd, ...sc.wt].find(x => x.cls === "warn");
+    return `<tr data-row="${esc(t.id)}"><td class="r"><span class="score ${sc.dc}">${sc.D}</span></td><td class="r"><span class="score ${sc.tc}">${sc.T}</span></td>
+      <td><div class="nm">${esc(t.name)}</div><div class="sub">${t.ffvl && t.ffvl.st !== "actif" ? `<b style="color:var(--${(ST_FFVL[t.ffvl.st] || ["warn"])[0]})">${esc((ST_FFVL[t.ffvl.st] || [0, t.ffvl.st])[1])}</b> · ` : ""}${t.ori.length ? [...new Set(t.ori.map(abbr))].join(", ") : "orientation ?"} · ${esc(worst ? worst.t : "conditions favorables")}</div><button type="button" class="ghost sm" style="margin-top:4px" data-spot="${esc(t.id)}">Voir le sondage</button></td>
+      <td class="r">${t.alt != null ? Math.round(t.alt) : "—"}</td><td class="r">${fr(t.dist)}</td>
+      <td>${t.obs && t.obs.use ? `<span title="Mesuré : ${esc(t.obs.name)}">${abbr(t.obs.dir)} ${Math.round(t.obs.avg)}●</span>` : w ? `${abbr(w.dir)} ${Math.round(w.spd * 1.852)}` : "—"}</td><td class="r">${r.ceilZ !== null ? Math.round(r.ceilZ) : "—"}</td></tr>`; }).join("")
+    : `<tr><td colspan="7" class="sub">Aucun décollage noté.</td></tr>`;
+  if (!initMap()) return;
+  SP.layer.clearLayers();
+  const c = SP.center; L.circle([c.lat, c.lon], { radius: c.r * 1000, color: getComputedStyle(document.documentElement).getPropertyValue("--accent"), weight: 1.5, fillOpacity: 0.04 }).addTo(SP.layer);
+  L.marker([c.lat, c.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin ctr"></div>', iconSize: [14, 14] }), title: "Centre de recherche" }).addTo(SP.layer);
+  SP.landings.forEach(l => L.marker([l.lat, l.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin land">A</div>', iconSize: [20, 20] }), title: l.name })
+    .bindPopup(`<div class="pop"><h4>${esc(l.name)}</h4><div class="meta">Atterrissage · ${l.alt != null ? Math.round(l.alt) + " m" : "alt. ?"}</div>${ffvlHtml(l)}<a href="${esc(l.url)}" target="_blank" rel="noopener">${l.src === "FFVL" ? "Rechercher le site sur ffvl.fr" : "Fiche " + esc(l.src)} ↗</a></div>`).addTo(SP.layer));
+  drawBeacons();
+  SP.takeoffs.forEach(t => { const sc = t.sc;
+    const html = sc ? `<div class="pin2" title="Déco ${sc.D} · Thermique ${sc.T}"><span class="${sc.dc}">${sc.D}</span><span class="${sc.tc}">${sc.T}</span></div>` : '<div class="pin2"><span class="mute">?</span></div>';
+    t.marker = L.marker([t.lat, t.lon], { icon: L.divIcon({ className: "clear", html, iconSize: [60, 24], iconAnchor: [30, 12] }), title: t.name, zIndexOffset: sc ? Math.round(sc.rank * 10) : 0 })
+      .bindPopup(sc ? popupHtml(t) : `<div class="pop"><h4>${esc(t.name)}</h4><div class="meta">Non noté (hors des 40 plus proches)</div></div>`, { maxWidth: 330 }).addTo(SP.layer); });
+  if (!SP.fitted) { SP.map.invalidateSize(); SP.map.fitBounds(L.latLng(c.lat, c.lon).toBounds(c.r * 2000), { padding: [10, 10] }); SP.fitted = true; }
+}
+function scoreAll() {
+  const i = SP.hour;
+  SP.takeoffs.forEach((t, k) => { t.res = null; t.sc = null; const d = SP.data[k]; if (!d) return;
+    try { t.res = analyzeSpot(t, d, i); t.obs = beaconFor(t, i); t.sc = scoreSpot(t, t.res, t.obs); } catch (e) { console.warn("Site non noté", t.name, e); } });
+  renderSpots();
+  const best = SP.takeoffs.filter(t => t.sc).sort((a, b) => b.sc.rank - a.sc.rank)[0];
+  spotMsg(`${SP.takeoffs.filter(t => t.sc).length} décollages notés, ${SP.landings.length} atterrissage${SP.landings.length > 1 ? "s" : ""}. ${best ? `Meilleur : ${best.name} (déco ${best.sc.D}/100, thermique ${best.sc.T}/100).` : ""} ${SP.balTxt || ""}${SP.srcNote ? " " + SP.srcNote + "." : ""} ${SP.timing || ""}`, "ok");
+}
+async function searchSpots() {
+  const lat = +$("lat").value, lon = +$("lon").value, r = +$("radius").value;
+  if (!isFinite(lat) || !isFinite(lon)) { spotMsg("Coordonnées invalides.", "err"); return; }
+  SP.center = { lat, lon, r }; SP.fitted = false; $("spotsBtn").disabled = true;
+  try {
+    spotMsg("Recherche des décollages et atterrissages…"); const t0 = performance.now();
+    const balP = loadBeacons().catch(e => { console.warn(e); return ""; });
+    let got; try { got = await getSites(lat, lon, r); } catch (e) { spotMsg(e.message, "err"); return; }
+    SP.srcNote = got.note; const tSites = (performance.now() - t0) / 1000;
+    const sites = got.sites.map(s => ({ ...s, ori: [...(s.ori || [])], dist: distKm(lat, lon, s.lat, s.lon) })).filter(s => s.dist <= r + 0.5);
+    SP.landings = sites.filter(s => s.kind === "landing");
+    SP.takeoffs = sites.filter(s => s.kind === "takeoff").sort((a, b) => a.dist - b.dist);
+    if (!SP.takeoffs.length) { SP.data = []; renderSpots(); spotMsg("Aucun décollage référencé dans ce rayon. Agrandissez le rayon ou déplacez le centre.", "err"); return; }
+    const scored = SP.takeoffs.slice(0, +$("spotN").value || 25);
+    spotMsg(`${SP.takeoffs.length} décollages trouvés${got.cached ? " (liste en mémoire)" : ""}. Prévision ${MODEL_NAMES[$("model").value] || ""} pour les ${scored.length} plus proches…`);
+    const t1 = performance.now(), arr = await fetchForecasts(scored);
+    SP.balTxt = await balP;
+    SP.timing = `Durée : sites ${got.cached ? "en mémoire" : fr(tSites) + " s"}, prévision ${fr((performance.now() - t1) / 1000)} s.`;
+    SP.data = scored.map((t, k) => arr[k] && arr[k].hourly ? datasetOf(arr[k]) : null);
+    SP.times = (arr[0] && arr[0].hourly && arr[0].hourly.time) || [];
+    const sel = $("spotHour"); sel.innerHTML = SP.times.map((t, k) => `<option value="${k}">${new Date(t).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" })} ${t.slice(11, 16)}</option>`).join("");
+    const today = new Date().toISOString().slice(0, 10); let idx = SP.times.findIndex(t => t.slice(11, 13) === "14" && t.slice(0, 10) >= today); if (idx < 0) idx = 0;
+    SP.hour = idx; sel.value = idx; scoreAll();
+  } catch (e) { console.warn(e); spotMsg("Échec : " + (e.message || "erreur réseau") + ".", "err"); }
+  finally { $("spotsBtn").disabled = false; SP.noCache = false; }
+}
+const DG = id => `https://www.data.gouv.fr/api/1/datasets/r/${id}`;
+const FFVL_TERRAINS = "4375c95d-cf26-4e71-b72d-2e09be5a0e36", FFVL_BALISES = "8d795154-9145-4ab2-99de-6768a36f31ea", FFVL_RELEVES = "047b2ab9-627f-4e5f-9d68-5b948433c61d";
+const FT_KEY = "emagramme-ffvl-terrains", DAY = 864e5;
+async function ffvlTerrains() {
+  if (!SP.noCache) {
+    if (SP.ffvlT && Date.now() - SP.ffvlT.t < DAY) return { list: SP.ffvlT.list, cached: true };
+    try { const c = JSON.parse(localStorage.getItem(FT_KEY) || "null"); if (c && c.list && Date.now() - c.t < DAY) { SP.ffvlT = c; return { list: c.list, cached: true }; } } catch {}
+  }
+  const raw = await getJSON(DG(FFVL_TERRAINS), 60000);
+  const triv = v => !v || /^(\.|ras|aucun|néant|neant|-)\s*$/i.test(String(v).trim());
+  const list = (Array.isArray(raw) ? raw : []).filter(x => /parapente/i.test(x.possible_usages_text || "") && /d[ée]collage|treuil|atterrissage/i.test(x.flying_functions_text || "") && isFinite(x.latitude) && isFinite(x.longitude))
+    .map(x => ({ i: x.suid, n: x.toponym, a: +x.latitude, o: +x.longitude, z: x.altitude ?? null, f: x.flying_functions_text, ok: x.wind_orientations_ok || "", nok: x.wind_orientations_nok || "",
+      st: x.status, r: String(x.restrictions || "").trim().slice(0, 400), w: triv(x.warnings) ? "" : String(x.warnings).trim().slice(0, 300), al: x.alert_msg || "", e: x.terrain_experience_conseillee || "", c: x.convention_type || "" }));
+  if (!list.length) throw new Error("fichier des terrains vide");
+  SP.ffvlT = { t: Date.now(), list };
+  try { localStorage.setItem(FT_KEY, JSON.stringify(SP.ffvlT)); } catch (e) { console.warn("Terrains FFVL non mémorisés", e); }
+  return { list, cached: false };
+}
+const titleCase = t => String(t || "").toLowerCase().replace(/(^|[\s\-'’(])(\p{L})/gu, (m, a, b) => a + b.toUpperCase())
+  .replace(/(\s)(De|Du|Des|La|Le|Les|Sur|Sous|En|Et|Au|Aux)(?=\s)/gu, (m, a, w) => a + w.toLowerCase()).replace(/(\s)([DL])'/gu, (m, a, w) => a + w.toLowerCase() + "'");
+function ffvlSitesAround(list, lat, lon, r) {
+  const out = [];
+  for (const x of list) { if (distKm(lat, lon, x.a, x.o) > r + 0.5) continue;
+    const base = { src: "FFVL", lat: x.a, lon: x.o, alt: x.z, nok: parseOri(x.nok), name: titleCase(x.n), url: "https://federation.ffvl.fr/pages/rechercher-un-site-vol",
+      ffvl: { st: x.st, r: x.r, w: x.w, al: x.al, e: x.e, c: x.c, f: x.f } };
+    if (/d[ée]collage|treuil/i.test(x.f)) out.push({ ...base, id: `ffvl-${x.i}`, kind: "takeoff", ori: parseOri(x.ok) });
+    if (/atterrissage/i.test(x.f)) out.push({ ...base, id: `ffvl-${x.i}-a`, kind: "landing", ori: [] });
+  }
+  return out;
+}
+async function getSites(lat, lon, r) {
+  let ffvl = [], fErr = null, fCached = false;
+  try { const T = await ffvlTerrains(); fCached = T.cached; ffvl = ffvlSitesAround(T.list, lat, lon, r); } catch (e) { fErr = e.message; console.warn(e); }
+  const notes = []; if (fErr) notes.push(`FFVL indisponible (${fErr})`);
+  let extra = { sites: [], note: "", cached: true };
+  if ($("osmOn").checked || fErr) { try { extra = await getExtraSites(lat, lon, r); } catch (e) { if (fErr) throw e; notes.push(e.message); } }
+  if (extra.note) notes.push(extra.note);
+  return { sites: mergeSites([...ffvl, ...extra.sites]), note: notes.join(", "), cached: fCached && extra.cached };
+}
+const ST_FFVL = { actif: ["good", "Site actif"], actif_autorisation_systematique_requise: ["warn", "Autorisation systématique requise"], interdit: ["bad", "Site interdit"], interdit_sauf_autorisation: ["bad", "Interdit sauf autorisation"] };
+function ffvlHtml(x) { const F = x.ffvl; if (!F) return "";
+  const st = ST_FFVL[F.st] || ["mute", F.st || "statut inconnu"], rows = [`<div><span class="pill ${st[0]}">${esc(st[1])}</span>${F.e ? ` <span class="pill mute">Niveau conseillé ${esc(F.e.toUpperCase().replace("IPPI", "IPPI "))}</span>` : ""}</div>`];
+  if (x.nok && x.nok.length) rows.push(`<div>Orientations déconseillées : ${[...new Set(x.nok.map(abbr))].join(", ")}</div>`);
+  if (F.al) rows.push(`<div class="bad" style="color:var(--bad)">Alerte : ${esc(F.al)}</div>`);
+  if (F.r) rows.push(`<div class="r">Restrictions : ${esc(F.r)}</div>`);
+  if (F.w) rows.push(`<div class="r">Avertissement : ${esc(F.w)}</div>`);
+  return `<div class="ffvl">${rows.join("")}</div>`; }
+const SITES_KEY = "emagramme-sites-cache", SITES_TTL = 7 * 864e5;
+function sitesCache() { try { return JSON.parse(localStorage.getItem(SITES_KEY) || "{}") || {}; } catch { return {}; } }
+async function fillAlt(list) {
+  for (let i = 0; i < list.length; i += 100) { const c = list.slice(i, i + 100);
+    try { const e = await getJSON(`https://api.open-meteo.com/v1/elevation?latitude=${c.map(s => s.lat.toFixed(4)).join(",")}&longitude=${c.map(s => s.lon.toFixed(4)).join(",")}`, 10000);
+      (e.elevation || []).forEach((v, k) => { if (isFinite(v)) c[k].alt = v; }); } catch (e) { console.warn(e); } } }
+async function getExtraSites(lat, lon, r) {
+  const C = sitesCache(), now = Date.now();
+  if (!SP.noCache) for (const k in C) { const e = C[k];
+    if (e && now - e.t < SITES_TTL && distKm(lat, lon, e.lat, e.lon) + r <= e.r + 0.01) return { sites: e.sites, note: e.note || "", cached: true, age: now - e.t }; }
+  const res = await Promise.allSettled([fetchOSM(lat, lon, r), fetchPGE(lat, lon, r)]);
+  const why = n => res[n].status === "rejected" ? (res[n].reason && res[n].reason.message) || "erreur" : null;
+  if (res.every(x => x.status === "rejected")) throw new Error(location.protocol === "file:"
+    ? `Aucune source de sites n'a répondu. OpenStreetMap : ${why(0)}. ParaglidingEarth : ${why(1)}. Si « Récupérer le sondage » fonctionne, la connexion est bonne : les serveurs OpenStreetMap sont sans doute saturés, réessayez dans une minute.`
+    : "Cette page ne peut pas joindre les bases de sites : la visionneuse claude.ai bloque les accès externes. Ouvrez le fichier emagramme-arome.html dans votre navigateur (double-clic).");
+  const note = res.map((x, n) => x.status === "rejected" ? `${n ? "ParaglidingEarth" : "OpenStreetMap"} indisponible (${why(n)})` : "").filter(Boolean).join(", ");
+  const sites = mergeSites(res.flatMap(x => x.status === "fulfilled" ? x.value : []));
+  await fillAlt(sites.filter(s => s.alt == null));
+  const key = `${lat.toFixed(3)},${lon.toFixed(3)},${r}`; C[key] = { t: now, lat, lon, r, sites, note };
+  const keys = Object.keys(C).sort((a, b) => C[b].t - C[a].t); keys.slice(8).forEach(k => delete C[k]);
+  try { localStorage.setItem(SITES_KEY, JSON.stringify(C)); } catch (e) { console.warn("Cache des sites non enregistré", e); }
+  return { sites, note, cached: false };
+}
+async function fetchForecasts(list) {
+  const chunks = []; for (let i = 0; i < list.length; i += 10) chunks.push(list.slice(i, i + 10));
+  const one = async c => { let d; try { d = await getJSON(spotUrl(c, true), 40000); } catch (e) { d = await getJSON(spotUrl(c, false), 40000); } return Array.isArray(d) ? d : [d]; };
+  const res = await Promise.allSettled(chunks.map(one));
+  if (res.every(x => x.status === "rejected")) throw new Error("prévision indisponible (" + ((res[0].reason && res[0].reason.message) || "erreur") + ")");
+  return res.flatMap((x, k) => x.status === "fulfilled" ? x.value : Array(chunks[k].length).fill(null));
+}
+function loadSpot(id) {
+  const k = SP.takeoffs.findIndex(t => t.id === id), t = SP.takeoffs[k], D = SP.data[k]; if (!t || !D) return;
+  if (S.tut) exitTut();
+  S.place = t.name; loadOpenMeteo(D.d); showHour(SP.hour, true);
+  if (t.alt != null) setRelief({ on: true, z: Math.round(t.alt), dT: +$("spotDT").value || 3 });
+  $("dTitle").textContent = `${t.name} · ${$("dTitle").textContent.split(" · ").slice(-1)[0]}`;
+  msg(`Sondage du site « ${t.name} » (${t.alt != null ? Math.round(t.alt) + " m" : "altitude inconnue"}) chargé, thermiques de relief depuis le décollage.`, "ok");
+  document.querySelector(".main").scrollIntoView({ block: "start" });
+}
+$("spotsBtn").addEventListener("click", searchSpots);
+$("spotsRefresh").addEventListener("click", () => { SP.noCache = true; searchSpots(); });
+$("spotHour").addEventListener("change", e => { if (!SP.data.length) return; SP.hour = +e.target.value; scoreAll(); });
+$("spotDT").addEventListener("change", () => { if (SP.data.length) scoreAll(); });
+document.addEventListener("click", e => { const b = e.target.closest("[data-spot]"); if (b) { e.stopPropagation(); loadSpot(b.dataset.spot); return; }
+  const tr = e.target.closest("tr[data-row]"); if (tr && SP.map) { const t = SP.takeoffs.find(x => x.id === tr.dataset.row); if (t && t.marker) { SP.map.setView([t.lat, t.lon], Math.max(SP.map.getZoom(), 13)); t.marker.openPopup(); $("map").scrollIntoView({ block: "nearest" }); } } });
+
+// ---------- Balises (vent mesuré) ----------
+SP.beacons = [];
+const pick = (o, names) => { if (!o) return null; const ks = Object.keys(o); for (const n of names) { const k = ks.find(x => x.toLowerCase() === n.toLowerCase()); if (k && o[k] !== null && o[k] !== "") return o[k]; } return null; };
+const parseWhen = v => { if (v === null || v === undefined) return NaN; if (typeof v === "number" || /^\d+$/.test(v)) { const n = +v; return n < 1e12 ? n * 1000 : n; } return Date.parse(String(v).replace(" ", "T")); };
+const firstArray = d => Array.isArray(d) ? d : d && (d.data || d.balises || d.releves || Object.values(d).find(Array.isArray)) || null;
+async function tryUrls(urls) { let err = null;
+  for (const u of urls) { try { const arr = firstArray(await getJSON(u, 8000)); if (arr && arr.length) return arr; } catch (e) { err = e; } }
+  throw err || new Error("réponse vide"); }
+async function fetchFFVL() {
+  let list = null;
+  try { const c = JSON.parse(localStorage.getItem("emagramme-ffvl-balises") || "null"); if (c && c.list && Date.now() - c.t < DAY) list = c.list; } catch {}
+  if (!list) { const raw = await getJSON(DG(FFVL_BALISES), 20000);
+    list = (Array.isArray(raw) ? raw : []).map(b => ({ id: b.idBalise, nom: b.nom, lat: +b.latitude, lon: +b.longitude, alt: b.altitude ?? null, m: +b.en_maintenance || 0 }));
+    try { localStorage.setItem("emagramme-ffvl-balises", JSON.stringify({ t: Date.now(), list })); } catch {} }
+  const rel = await getJSON(DG(FFVL_RELEVES), 15000), last = {};
+  (Array.isArray(rel) ? rel : []).forEach(m => { const t = Date.parse(m.date); if (!last[m.idbalise] || t > last[m.idbalise].t) last[m.idbalise] = { t, m }; });
+  return list.map(b => { const L = last[b.id]; if (!L || b.m || !isFinite(b.lat) || !isFinite(b.lon)) return null;
+    const m = L.m, avg = +m.vitesseVentMoy, max = +m.vitesseVentMax, dir = +(m.directVentMoy ?? m.directVentInst);
+    if (!isFinite(avg) || !isFinite(dir)) return null;
+    return { src: "FFVL", id: "ffvl-b" + b.id, name: b.nom || `Balise ${b.id}`, lat: b.lat, lon: b.lon, alt: b.alt, avg, max: isFinite(max) ? max : avg, dir, date: L.t,
+      url: `https://www.balisemeteo.com/balise.php?idBalise=${b.id}` };
+  }).filter(Boolean);
+}
+async function fetchPioupiou() {
+  const d = await getJSON("https://api.pioupiou.fr/v1/live/all", 10000);
+  return (d.data || []).filter(s => s && s.location && s.measurements && s.location.latitude != null && s.measurements.wind_speed_avg != null && s.measurements.wind_heading != null)
+    .map(s => ({ src: "Pioupiou", id: "pp-" + s.id, name: (s.meta && s.meta.name) || `Pioupiou ${s.id}`, lat: +s.location.latitude, lon: +s.location.longitude, alt: null,
+      avg: +s.measurements.wind_speed_avg, max: +(s.measurements.wind_speed_max ?? s.measurements.wind_speed_avg), dir: +s.measurements.wind_heading,
+      date: Date.parse(s.measurements.date), url: `https://www.openwindmap.org/PP${s.id}` }));
+}
+async function loadBeacons() {
+  SP.beacons = []; if (!$("balOn").checked || !SP.center) return "";
+  const c = SP.center, res = await Promise.allSettled([fetchFFVL(), fetchPioupiou()]);
+  const all = [];
+  res.flatMap(x => x.status === "fulfilled" ? x.value : []).forEach(b => { b.dist = distKm(c.lat, c.lon, b.lat, b.lon);
+    if (b.dist <= c.r + 10 && !all.some(a => distKm(a.lat, a.lon, b.lat, b.lon) < 0.15)) all.push(b); });
+  const noAlt = all.filter(b => b.alt == null).slice(0, 100);
+  if (noAlt.length) { try { const e = await getJSON(`https://api.open-meteo.com/v1/elevation?latitude=${noAlt.map(b => b.lat.toFixed(4)).join(",")}&longitude=${noAlt.map(b => b.lon.toFixed(4)).join(",")}`);
+    (e.elevation || []).forEach((v, k) => { if (isFinite(v)) noAlt[k].alt = v; }); } catch (e) { console.warn(e); } }
+  SP.beacons = all;
+  const ko = ["FFVL", "Pioupiou"].filter((n, k) => res[k].status === "rejected");
+  return `${all.length} balise${all.length > 1 ? "s" : ""}${ko.length ? ` (${ko.join(" et ")} injoignable${ko.length > 1 ? "s" : ""})` : ""}.`;
+}
+function beaconFor(t, i) {
+  let best = null, bs = 1e9;
+  for (const b of SP.beacons) { const d = distKm(t.lat, t.lon, b.lat, b.lon), dz = b.alt != null && t.alt != null ? Math.abs(b.alt - t.alt) : 9999;
+    if (d <= 10 && dz <= 600) { const sc = d + dz / 100; if (sc < bs) { bs = sc; best = { ...b, d, dz }; } } }
+  if (!best) return null;
+  best.ageMin = (Date.now() - best.date) / 60000;
+  const hr = SP.times[i] ? Math.abs(new Date(SP.times[i]) - Date.now()) / 3.6e6 : 99;
+  best.use = best.d <= 5 && best.dz <= 400 && best.ageMin <= 60 && best.ageMin > -10 && hr <= 1.5;
+  return best;
+}
+const beaconCls = b => (Date.now() - b.date) / 60000 > 60 ? "mute" : b.max > 35 || b.avg > 25 ? "bad" : b.avg > 15 ? "warn" : "good";
+const agoTxt = b => { const m = Math.round((Date.now() - b.date) / 60000); return !isFinite(m) ? "heure inconnue" : m < 60 ? `il y a ${Math.max(0, m)} min` : `il y a ${Math.round(m / 60)} h`; };
+function beaconLine(o) { return `${/^balise/i.test(o.name) ? "" : "Balise "}${o.name} (${o.src}, ${fr(o.d)} km${o.alt != null ? `, ${Math.round(o.alt)} m` : ""}) : ${abbr(o.dir)} ${Math.round(o.avg)} km/h, rafales ${Math.round(o.max)}, ${agoTxt(o)}`; }
+function drawBeacons() {
+  if (!SP.map) return;
+  SP.beacons.forEach(b => { const cls = beaconCls(b);
+    const html = `<div class="bal ${cls}"><svg viewBox="0 0 24 24" style="transform:rotate(${(b.dir + 180) % 360}deg)"><path d="M12 2 L19 21 L12 16 L5 21 Z" fill="currentColor"/></svg>${Math.round(b.avg)}/${Math.round(b.max)}</div>`;
+    L.marker([b.lat, b.lon], { icon: L.divIcon({ className: "clear", html, iconSize: [64, 20], iconAnchor: [10, 10] }), title: b.name, zIndexOffset: -100 })
+      .bindPopup(`<div class="pop"><h4>${esc(b.name)}</h4><div class="meta">Balise ${esc(b.src)}${b.alt != null ? ` · ${Math.round(b.alt)} m` : ""} · ${agoTxt(b)}</div>
+        <div>Vent du ${esc(dirName(b.dir))} (${Math.round(b.dir)}°) : <b>${Math.round(b.avg)} km/h</b>, rafales ${Math.round(b.max)} km/h</div>
+        <a href="${esc(b.url)}" target="_blank" rel="noopener">Voir la balise ↗</a></div>`).addTo(SP.layer); });
+}
+$("balBtn").addEventListener("click", async () => { if (!SP.center) { spotMsg("Lancez d'abord la recherche des sites.", "err"); return; }
+  spotMsg("Lecture des balises…"); const t = await loadBeacons(); if (SP.data.length) scoreAll(); spotMsg(t || "Balises désactivées.", "ok"); });
+$("balOn").addEventListener("change", () => { if (!$("balOn").checked) { SP.beacons = []; if (SP.data.length) scoreAll(); } });
+
+// ---------- Démarrage ----------
+const saved = store.get();
+if (saved) { $("lat").value = saved.lat; $("lon").value = saved.lon; if (saved.model) $("model").value = saved.model; S.place = saved.place || ""; }
+updateLink();
+$("hourSel").innerHTML = "<option>Exemple</option>";
+setSounding(structuredClone(EXAMPLE));
+S.cursorP = 850; updateReadout(); draw();
+tryFetch();
+})();
+</script>
+</body>
+</html>
