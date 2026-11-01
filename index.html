@@ -238,6 +238,12 @@ dialog#rules::backdrop{background:rgba(10,15,30,.45)}
 .tabs [role=tab]{background:transparent;border:0;color:var(--muted);font-size:16px;padding:10px 18px;border-radius:9px;white-space:nowrap}
 .tabs [role=tab]:hover{background:var(--tint);color:var(--accent);filter:none}
 .tabs [role=tab][aria-selected=true]{background:var(--accent);color:var(--accent-ink)}
+.topbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px}
+.topbar .tabs{flex:0 0 auto}
+.topbar .searchbar{margin:0;flex:1 1 380px;max-width:640px;background:var(--surface);border-color:transparent;box-shadow:var(--shadow)}
+.topbar .searchbar input{flex:1 1 120px}
+.topbar .searchbar select{max-width:210px}
+@media (max-width:720px){.topbar .tabs{flex:1 1 100%;width:100%!important}.topbar .tabs [role=tab]{flex:1 1 0}.topbar .searchbar{max-width:none}.topbar .searchbar input{flex:1 1 100%}.topbar .searchbar select{max-width:100%}}
 .pane{display:grid;gap:22px;min-width:0}
 /* ---- Carte des fronts ---- */
 .fr-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;margin-top:12px}
@@ -402,10 +408,19 @@ footer{padding:4px 2px 0}
     <p class="note">Pour afficher la vigilance : créez un compte gratuit sur <a href="https://portail-api.meteofrance.fr" target="_blank" rel="noopener">portail-api.meteofrance.fr</a>, abonnez-vous à l'API « Bulletin Vigilance » et générez une clé (« API Key »). Elle est gardée <b>uniquement dans ce navigateur</b> et n'est envoyée qu'à Météo-France.</p><p class="msg" id="mfKeyMsg" hidden></p></div>
   <div class="rules-b" id="rulesB"></div></dialog>
 
-  <nav class="tabs" role="tablist" aria-label="Sections">
-    <button type="button" role="tab" id="tab-situation" aria-controls="pane-situation" aria-selected="true">Situation générale</button>
-    <button type="button" role="tab" id="tab-voler" aria-controls="pane-voler" aria-selected="false">Où voler</button>
-  </nav>
+  <div class="topbar">
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button type="button" role="tab" id="tab-situation" aria-controls="pane-situation" aria-selected="true">Situation générale</button>
+      <button type="button" role="tab" id="tab-voler" aria-controls="pane-voler" aria-selected="false">Où voler</button>
+    </nav>
+    <form class="searchbar" id="locForm" role="search">
+      <label for="city" class="sr">Lieu</label>
+      <input id="city" type="search" placeholder="Rechercher une commune ou un site…" autocomplete="off">
+      <button id="cityBtn" type="submit">Chercher</button>
+      <button id="geoBtn" type="button" class="soft">◎ Ma position</button>
+      <div class="field" id="presetBox" hidden><label for="preset" class="sr">Résultats</label><select id="preset" aria-label="Résultats de recherche"></select></div>
+    </form>
+  </div>
   <div class="pane" id="pane-situation" role="tabpanel" aria-labelledby="tab-situation">
   <section class="panel" id="vigi" aria-labelledby="vigi-h">
     <div class="sec-h"><div><div class="kick">Vigilance Météo-France</div><h2 id="vigi-h" class="situ-t">Vigilance du département</h2></div><span class="sub" id="vigiWhen"></span></div>
@@ -473,13 +488,6 @@ footer{padding:4px 2px 0}
   <section class="panel" id="spots" aria-labelledby="spots-h">
     <div class="vigi-banner" id="vigiBanner" hidden role="alert"></div>
     <div class="sec-h"><h2 id="spots-h">Où voler ?</h2><span class="sub" id="placeNow" aria-live="polite"></span></div>
-    <form class="searchbar" id="locForm" role="search">
-      <label for="city" class="sr">Lieu</label>
-      <input id="city" type="search" placeholder="Rechercher une commune ou un site…" autocomplete="off">
-      <button id="cityBtn" type="submit">Chercher</button>
-      <button id="geoBtn" type="button" class="soft">◎ Ma position</button>
-      <div class="field" id="presetBox" hidden><label for="preset" class="sr">Résultats</label><select id="preset" aria-label="Résultats de recherche"></select></div>
-    </form>
     <div class="toolbar">
       <div class="field"><label for="radius">Rayon</label><select id="radius"><option value="10">10 km</option><option value="25" selected>25 km</option><option value="40">40 km</option><option value="60">60 km</option></select></div>
       <div class="field"><label for="spotHour">Jour et heure</label><div style="display:flex;gap:6px"><select id="spotHour"><option value="">—</option></select><button id="nowBtn" type="button" class="soft" title="Choisir l'heure actuelle pour comparer avec les balises">Maintenant</button></div></div>
@@ -1162,7 +1170,7 @@ function ingest(txt) {
     msg("Sondage chargé.", "ok"); $("pasteBox").open = false;
   } catch (e) { msg(e.message.startsWith("Unexpected") ? "JSON incomplet : copiez bien toute la page (Ctrl/Cmd + A)." : e.message, "err"); }
 }
-function msg(t, kind) { if (kind === "err") spotMsg(t, "err"); else if (kind !== "ok" && t) spotMsg(t, ""); const m = $("fetchMsg"); m.hidden = false; m.className = "msg " + (kind || ""); m.textContent = t;
+function msg(t, kind) { if (kind === "err") { spotMsg(t, "err"); situMsg(t, "err"); } else if (kind !== "ok" && t) spotMsg(t, ""); const m = $("fetchMsg"); m.hidden = false; m.className = "msg " + (kind || ""); m.textContent = t;
   if (kind === "ok") { const b = document.createElement("button"); b.type = "button"; b.className = "ghost sm"; b.style.marginLeft = "10px";
     b.textContent = "Lire ce sondage avec moi"; b.addEventListener("click", startRead); m.appendChild(b); } }
 
