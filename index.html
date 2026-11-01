@@ -72,7 +72,7 @@ header.top p{margin:4px 0 0;color:var(--muted);max-width:68ch}
 .row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
 .field{display:grid;gap:3px;min-width:0}
 .field label,.lbl{font-family:var(--f-display);font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}
-input[type=number],input[type=text],select,textarea{font:inherit;font-family:var(--f-mono);font-size:13px;color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:6px 8px;min-width:0}
+input[type=number],input[type=text],input[type=search],select,textarea{font:inherit;font-family:var(--f-mono);font-size:13px;color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:6px 8px;min-width:0}
 input[type=number]{width:96px}
 textarea{width:100%;min-height:64px;resize:vertical}
 button,.btn{font-family:var(--f-display);font-weight:700;font-size:14.5px;letter-spacing:.04em;border-radius:3px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);padding:7px 14px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
@@ -228,29 +228,8 @@ dialog#rules::backdrop{background:rgba(10,15,30,.45)}
     <div class="hdr-actions"><button id="rulesBtn" type="button" class="ghost" aria-haspopup="dialog">Paramètres</button><button id="readBtn" type="button">Lecture commentée</button><button id="tutBtn" type="button" class="ghost">Apprendre à lire un émagramme</button><span id="srcBadge" class="badge ex">Exemple fictif</span></div>
   </header>
 
-  <section class="panel source" aria-labelledby="src-h">
-    <h2 id="src-h">Source du sondage</h2>
+  <section class="panel source" hidden aria-hidden="true">
     <div class="row">
-      <div class="field"><label for="city">Rechercher une commune</label><input id="city" type="text" placeholder="ex. Saint-Hilaire-du-Touvet" style="width:240px"></div>
-      <button id="cityBtn" type="button" class="ghost">Chercher</button>
-      <button id="geoBtn" type="button" class="ghost">Ma position</button>
-    </div>
-    <div class="row">
-      <div class="field"><label for="preset">Site</label>
-        <select id="preset">
-          <option value="">Coordonnées libres</option>
-          <option value="45.19,5.72">Grenoble</option>
-          <option value="45.31,5.87">Dent de Crolles / Saint-Hilaire</option>
-          <option value="45.90,6.13">Annecy</option>
-          <option value="45.92,6.87">Chamonix</option>
-          <option value="43.92,6.51">Saint-André-les-Alpes</option>
-          <option value="44.10,3.08">Millau</option>
-          <option value="45.76,4.84">Lyon</option>
-          <option value="43.60,1.44">Toulouse</option>
-          <option value="48.86,2.35">Paris</option>
-          <option value="47.22,-1.55">Nantes</option>
-          <option value="48.58,7.75">Strasbourg</option>
-        </select></div>
       <div class="field"><label for="lat">Latitude</label><input id="lat" type="number" step="0.01" value="45.19"></div>
       <div class="field"><label for="lon">Longitude</label><input id="lon" type="number" step="0.01" value="5.72"></div>
       <div class="field"><label for="model">Modèle</label>
@@ -282,6 +261,13 @@ dialog#rules::backdrop{background:rgba(10,15,30,.45)}
 
   <section class="panel" id="spots" aria-labelledby="spots-h">
     <h2 id="spots-h">Sites de vol autour du point</h2>
+    <form class="row loc" id="locForm" role="search" style="margin-top:10px">
+      <div class="field" style="flex:1 1 260px;max-width:420px"><label for="city">Lieu</label><input id="city" type="search" placeholder="Commune, site… (ex. Saint-Hilaire-du-Touvet)" autocomplete="off" style="width:100%"></div>
+      <button id="cityBtn" type="submit">Chercher</button>
+      <button id="geoBtn" type="button" class="ghost">Ma position</button>
+      <div class="field" id="presetBox" hidden><label for="preset">Résultats</label><select id="preset"></select></div>
+      <span class="sub" id="placeNow" aria-live="polite"></span>
+    </form>
     <div class="row" style="margin-top:10px">
       <div class="field"><label for="radius">Rayon</label><select id="radius"><option value="10">10 km</option><option value="25" selected>25 km</option><option value="40">40 km</option><option value="60">60 km</option></select></div>
       <div class="field"><label for="spotHour">Jour et heure</label><div style="display:flex;gap:6px"><select id="spotHour"><option value="">—</option></select><button id="nowBtn" type="button" class="ghost" title="Choisir l'heure actuelle pour comparer avec les balises">Maintenant</button></div></div>
@@ -961,7 +947,7 @@ function ingest(txt) {
     msg("Sondage chargé.", "ok"); $("pasteBox").open = false;
   } catch (e) { msg(e.message.startsWith("Unexpected") ? "JSON incomplet : copiez bien toute la page (Ctrl/Cmd + A)." : e.message, "err"); }
 }
-function msg(t, kind) { const m = $("fetchMsg"); m.hidden = false; m.className = "msg " + (kind || ""); m.textContent = t;
+function msg(t, kind) { if (kind === "err") spotMsg(t, "err"); else if (kind !== "ok" && t) spotMsg(t, ""); const m = $("fetchMsg"); m.hidden = false; m.className = "msg " + (kind || ""); m.textContent = t;
   if (kind === "ok") { const b = document.createElement("button"); b.type = "button"; b.className = "ghost sm"; b.style.marginLeft = "10px";
     b.textContent = "Lire ce sondage avec moi"; b.addEventListener("click", startRead); m.appendChild(b); } }
 
@@ -1010,25 +996,25 @@ async function searchCity() {
     const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=8&language=fr&format=json`);
     const d = await r.json(); const res = d.results || [];
     if (!res.length) { msg("Aucune commune trouvée pour « " + q + " ».", "err"); return; }
-    const sel = $("preset"); [...sel.querySelectorAll("option[data-found]")].forEach(o => o.remove());
-    res.slice().reverse().forEach(c => { const o = document.createElement("option"); o.dataset.found = "1";
+    const sel = $("preset"); sel.innerHTML = "";
+    res.forEach(c => { const o = document.createElement("option"); o.dataset.found = "1";
       o.value = `${c.latitude},${c.longitude}`; o.dataset.name = c.name;
       o.textContent = `${c.name} (${[c.admin2 || c.admin1, c.country_code].filter(Boolean).join(", ")}${c.elevation != null ? ", " + Math.round(c.elevation) + " m" : ""})`;
-      sel.insertBefore(o, sel.options[1]); });
-    sel.selectedIndex = 1; pickPreset();
+      sel.appendChild(o); });
+    $("presetBox").hidden = res.length < 2; sel.selectedIndex = 0; pickPreset();
   } catch (e) { msg("Recherche impossible (connexion Internet ?).", "err"); }
 }
 function pickPreset() { const o = $("preset").selectedOptions[0]; if (!o || !o.value) return;
   const [a, b] = o.value.split(","); $("lat").value = (+a).toFixed(2); $("lon").value = (+b).toFixed(2);
-  S.place = o.dataset.name || o.textContent; updateLink(); tryFetch(); }
-$("cityBtn").addEventListener("click", searchCity);
-$("city").addEventListener("keydown", e => { if (e.key === "Enter") searchCity(); });
+  S.place = o.dataset.name || o.textContent; SP.here = false; SP.posNote = ""; updateLink(); showPlace(); tryFetch(); searchSpots(); }
+function showPlace() { $("placeNow").textContent = S.place ? `Lieu : ${S.place} (${(+$("lat").value).toFixed(2)}, ${(+$("lon").value).toFixed(2)})` : ""; }
+$("locForm").addEventListener("submit", e => { e.preventDefault(); searchCity(); });
 $("geoBtn").addEventListener("click", () => {
   if (!navigator.geolocation) { msg("Géolocalisation indisponible dans ce navigateur.", "err"); return; }
   msg("Localisation en cours…");
   navigator.geolocation.getCurrentPosition(pos => { $("lat").value = pos.coords.latitude.toFixed(2); $("lon").value = pos.coords.longitude.toFixed(2);
-    S.place = "Ma position"; updateLink(); tryFetch(); },
-    () => msg("Position refusée ou introuvable : saisissez une commune ou des coordonnées.", "err"), { timeout: 10000 });
+    S.place = "Ma position"; SP.here = true; SP.posNote = ""; updateLink(); showPlace(); tryFetch(); searchSpots(); },
+    () => msg("Position refusée ou introuvable : recherchez un lieu.", "err"), { timeout: 10000 });
 });
 $("lat").addEventListener("change", () => { S.place = ""; }); $("lon").addEventListener("change", () => { S.place = ""; });
 
@@ -2095,12 +2081,12 @@ setSounding(structuredClone(EXAMPLE));
 S.cursorP = 850; updateReadout(); draw();
 // À l'ouverture : position actuelle, sondage et carte des sites autour ; à défaut, dernier site consulté
 function openAtPosition() {
-  const fallback = why => { SP.posNote = why ? why + " Carte centrée sur le dernier site consulté." : ""; tryFetch(); searchSpots(); };
+  const fallback = why => { SP.posNote = why ? why + " Carte centrée sur le dernier lieu consulté." : ""; showPlace(); tryFetch(); searchSpots(); };
   if (!navigator.geolocation) { fallback(""); return; }
   spotMsg("Recherche de votre position…");
   navigator.geolocation.getCurrentPosition(pos => {
     $("lat").value = pos.coords.latitude.toFixed(2); $("lon").value = pos.coords.longitude.toFixed(2);
-    S.place = "Ma position"; SP.here = true; SP.posNote = ""; updateLink(); tryFetch(); searchSpots();
+    S.place = "Ma position"; SP.here = true; SP.posNote = ""; updateLink(); showPlace(); tryFetch(); searchSpots();
   }, err => fallback(err && err.code === 1 ? "Position non autorisée." : "Position introuvable."), { timeout: 10000, maximumAge: 10 * 60e3 });
 }
 openAtPosition();
