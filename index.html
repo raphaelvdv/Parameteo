@@ -192,6 +192,8 @@ dialog#rules::backdrop{background:rgba(10,15,30,.45)}
 .why-h{font-family:var(--f-display);font-weight:600;font-size:13px;margin-top:6px}
 .pin.land{width:20px;height:20px;border-radius:4px;background:var(--dew);font-size:10px}
 .pin.ctr{width:14px;height:14px;background:var(--ink)}
+.pin.pt{width:24px;height:24px;background:var(--hi);font-size:15px}
+.leaflet-container{cursor:crosshair}
 .leaflet-div-icon.clear{background:none;border:none}
 .leaflet-container{font-family:var(--f-body)}
 .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--surface);color:var(--ink)}
@@ -300,7 +302,7 @@ dialog#rules::backdrop{background:rgba(10,15,30,.45)}
         <tbody><tr><td colspan="6" class="sub">Lancez la recherche pour lister les décollages, du mieux noté au moins bien noté.</td></tr></tbody></table></div>
       </aside>
     </div>
-    <p class="note" style="margin-top:10px">Sites et balises : données officielles de la FFVL (open data data.gouv.fr, terrains mis à jour chaque jour, relevés toutes les 5 min), complétées si vous le cochez par OpenStreetMap et ParaglidingEarth. Vérifiez toujours la fiche du site et les consignes du club local. Deux notes sur 100, indicatives, d'après la prévision du modèle. <b>Déco</b> : vent au décollage et dans l'axe, rafales, pluie, nuage au déco, orage. <b>Thermique</b> : hauteur du plafond au-dessus du déco, vigueur des thermiques, soleil, cumulus, vent dans la couche, orage. Sur la carte, la pastille montre la note déco à gauche et la note thermique à droite ; les flèches sont les balises (vers où souffle le vent, vitesse moyenne/rafale en km/h). Les notes reposent uniquement sur la prévision. Quand l'heure choisie approche (moins de 2 h, bouton « Maintenant »), la colonne « Balise » et la fiche comparent la prévision au vent mesuré. Toutes les règles sont détaillées dans « Paramètres ». La liste est triée par la moyenne des deux, un déco noté sous 40 passant en fin de liste.</p>
+    <p class="note" style="margin-top:10px">Sites et balises : données officielles de la FFVL (open data data.gouv.fr, terrains mis à jour chaque jour, relevés toutes les 5 min), complétées si vous le cochez par OpenStreetMap et ParaglidingEarth. Vérifiez toujours la fiche du site et les consignes du club local. Deux notes sur 100, indicatives, d'après la prévision du modèle. <b>Déco</b> : vent au décollage et dans l'axe, rafales, pluie, nuage au déco, orage. <b>Thermique</b> : hauteur du plafond au-dessus du déco, vigueur des thermiques, soleil, cumulus, vent dans la couche, orage. Sur la carte, la pastille montre la note déco à gauche et la note thermique à droite ; les flèches sont les balises (vers où souffle le vent, vitesse moyenne/rafale en km/h). Les notes reposent uniquement sur la prévision. Quand l'heure choisie approche (moins de 2 h, bouton « Maintenant »), la colonne « Balise » et la fiche comparent la prévision au vent mesuré. Cliquez n'importe où sur la carte pour la prévision de ce point. Toutes les règles sont détaillées dans « Paramètres ». La liste est triée par la moyenne des deux, un déco noté sous 40 passant en fin de liste.</p>
   </section>
 
   <div class="main">
@@ -1633,7 +1635,9 @@ function initMap() {
   const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" });
   const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 18, attribution: "© Esri" });
   topo.addTo(SP.map); L.control.layers({ "Topographique": topo, "OpenStreetMap": osm, "Satellite": sat }).addTo(SP.map);
-  SP.layer = L.layerGroup().addTo(SP.map); return true;
+  SP.layer = L.layerGroup().addTo(SP.map);
+  SP.map.on("click", e => clickPoint(e.latlng.lat, e.latlng.lng));
+  return true;
 }
 function popupHtml(t) { const r = t.res, sc = t.sc, nl = nearestLanding(t);
   const li = arr => `<ul class="why">${arr.map(w => `<li class="${w.cls}">${esc(w.t)}</li>`).join("")}</ul>`;
@@ -1798,10 +1802,42 @@ async function fetchForecasts(list) {
   if (res.every(x => x.status === "rejected")) throw new Error("prévision indisponible (" + ((res[0].reason && res[0].reason.message) || "erreur") + ")");
   return res.flatMap((x, k) => x.status === "fulfilled" ? x.value : Array(chunks[k].length).fill(null));
 }
+// Clic n'importe où sur la carte : prévision, plafond et notes de ce point
+function pointHtml(t) {
+  const r = t.res, sc = t.sc, w = r.wind, li = arr => `<ul class="why">${arr.map(x => `<li class="${x.cls}">${esc(x.t)}</li>`).join("")}</ul>`;
+  return `<div class="pop"><h4>Point choisi</h4><div class="meta">${t.lat.toFixed(4)}, ${t.lon.toFixed(4)} · ${t.alt != null ? Math.round(t.alt) + " m" : "alt. ?"} · ${esc(t.timeTxt)}</div>
+    <div class="meta">Vent prévu à cette altitude : ${w ? `${esc(dirName(w.dir))}, ${Math.round(w.spd * 1.852)} km/h` : "—"} · plafond ${r.ceilZ !== null ? zr(r.ceilZ) : "—"} (${r.prim})</div>
+    <div class="why-h">Thermique en local <span class="score ${sc.tc}">${sc.T}</span></div>${li(sc.wt)}
+    <div class="why-h">Si l'on décollait ici <span class="score ${sc.dc}">${sc.D}</span></div>${li(sc.wd)}
+    <div class="meta">Point hors des sites référencés : vérifiez qu'un décollage y est possible et autorisé.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button type="button" class="sm" data-spot="point">Voir le sondage</button></div></div>`;
+}
+async function clickPoint(lat, lon) {
+  if (SP.clickMarker) SP.map.removeLayer(SP.clickMarker);
+  SP.clickMarker = L.marker([lat, lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin pt">+</div>', iconSize: [24, 24] }), title: "Point choisi", zIndexOffset: 2000 })
+    .addTo(SP.map).bindPopup('<div class="pop"><h4>Point choisi</h4><div class="meta">Prévision en cours…</div></div>', { maxWidth: 330 }).openPopup();
+  try {
+    const one = [{ lat, lon }];
+    const [d, e] = await Promise.all([getJSON(spotUrl(one, true), 30000).catch(() => getJSON(spotUrl(one, false), 30000)),
+      getJSON(`https://api.open-meteo.com/v1/elevation?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`, 10000).catch(() => null)]);
+    const D = datasetOf(Array.isArray(d) ? d[0] : d);
+    const alt = e && e.elevation && isFinite(e.elevation[0]) ? e.elevation[0] : D.elev;
+    let i = SP.times.length ? D.times.indexOf(SP.times[SP.hour]) : -1;
+    if (i < 0) { const today = new Date().toISOString().slice(0, 10); i = Math.max(0, D.times.findIndex(t => t.slice(11, 13) === "14" && t.slice(0, 10) >= today)); }
+    const site = { id: "point", src: "Carte", name: "Point choisi", lat, lon, alt, ori: [], nok: [], kind: "takeoff", url: "", D, i,
+      timeTxt: `${new Date(D.times[i]).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" })} ${D.times[i].slice(11, 16)}` };
+    site.res = analyzeSpot(site, D, i); site.sc = scoreSpot(site, site.res, null);
+    SP.point = site;
+    if (SP.clickMarker) SP.clickMarker.setPopupContent(pointHtml(site)).openPopup();
+  } catch (err) {
+    console.warn(err);
+    if (SP.clickMarker) SP.clickMarker.setPopupContent(`<div class="pop"><h4>Point choisi</h4><div class="meta">Prévision indisponible : ${esc(err.message || "erreur réseau")}.</div></div>`).openPopup();
+  }
+}
 function loadSpot(id) {
-  const k = SP.takeoffs.findIndex(t => t.id === id), t = SP.takeoffs[k], D = SP.data[k]; if (!t || !D) return;
+  const k = SP.takeoffs.findIndex(x => x.id === id), t = id === "point" ? SP.point : SP.takeoffs[k], D = id === "point" ? SP.point && SP.point.D : SP.data[k]; if (!t || !D) return;
   if (S.tut) exitTut();
-  S.place = t.name; loadOpenMeteo(D.d); showHour(SP.hour, true);
+  S.place = t.name; loadOpenMeteo(D.d); showHour(id === "point" ? t.i : SP.hour, true);
   if (t.alt != null) setRelief({ on: true, z: Math.round(t.alt), dT: t.res && t.res.sun ? t.res.sun.dT : (+$("spotDT").value || 3) });
   $("dTitle").textContent = `${t.name} · ${$("dTitle").textContent.split(" · ").slice(-1)[0]}`;
   msg(`Sondage du site « ${t.name} » (${t.alt != null ? Math.round(t.alt) + " m" : "altitude inconnue"}) chargé, thermiques de relief depuis le décollage.`, "ok");
