@@ -22,6 +22,7 @@
   --temp:#e0372c; --dew:#3463b8; --parcel:#172a4a; --ground:#f0dcc8;
   --cape:rgba(224,55,44,.15); --cin:rgba(52,99,184,.14);
   --good:#2e8a57; --warn:#d9730f; --bad:#d0342c;
+  --vig1:#2fb52d; --vig2:#f2e600; --vig3:#f7a401; --vig4:#e71919; --vig-ink:#13233a;
   --f-display:"Archivo Narrow","Arial Narrow",Arial,sans-serif;
   --f-body:"Archivo","Segoe UI",Roboto,Arial,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -217,6 +218,21 @@ dialog#rules::backdrop{background:rgba(10,15,30,.45)}
 .gloss dd{margin:0;color:var(--muted);font-size:13.5px}
 .gloss .sw{display:inline-block;width:22px;height:0;border-top:2px solid;vertical-align:middle}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* ---- Vigilance ---- */
+.vigi-body{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px;margin-top:10px}
+.vig-day{border-radius:var(--radius-s);background:var(--paper);padding:12px 14px;display:grid;gap:8px;align-content:start}
+.vig-day h3{font-size:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vig-chip{display:inline-flex;align-items:center;gap:6px;font:700 13px var(--f-display);letter-spacing:.03em;padding:3px 10px;border-radius:999px;color:var(--vig-ink)}
+.vig-c1{background:var(--vig1)}.vig-c2{background:var(--vig2)}.vig-c3{background:var(--vig3)}.vig-c4{background:var(--vig4);color:#fff}
+.vig-list{margin:0;padding:0;list-style:none;display:grid;gap:6px;font-size:14px}
+.vig-list li{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.vig-list .t{color:var(--muted);font-size:12.5px}
+.vigi-banner{border-radius:var(--radius-s);padding:10px 14px;margin-bottom:12px;font-weight:600;color:var(--vig-ink)}
+.vigi-banner.c3{background:var(--vig3)}.vigi-banner.c4{background:var(--vig4);color:#fff}
+.rules-key{padding:12px 18px;border-bottom:1px solid var(--rule);display:grid;gap:6px}
+.rules-key label{font:700 13px var(--f-display);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.rules-key input{flex:1 1 240px}
+.rules-key .note{margin:0}
 /* ---- Onglets ---- */
 .tabs{display:flex;gap:6px;padding:4px;border-radius:12px;background:var(--surface);box-shadow:var(--shadow);width:fit-content!important;max-width:100%;justify-self:start!important;overflow-x:auto}
 .tabs [role=tab]{background:transparent;border:0;color:var(--muted);font-size:16px;padding:10px 18px;border-radius:9px;white-space:nowrap}
@@ -368,13 +384,20 @@ footer{padding:4px 2px 0}
     </details>
   </section>
 
-  <dialog id="rules" aria-labelledby="rules-t"><div class="rules-h"><h2 id="rules-t">Paramètres : règles de notation</h2><button type="button" class="ghost sm" id="rulesX">Fermer</button></div><div class="rules-b" id="rulesB"></div></dialog>
+  <dialog id="rules" aria-labelledby="rules-t"><div class="rules-h"><h2 id="rules-t">Paramètres : règles de notation</h2><button type="button" class="ghost sm" id="rulesX">Fermer</button></div><div class="rules-key"><label for="mfKey">Clé API Météo-France (vigilance)</label>
+    <div class="row" style="align-items:center"><input id="mfKey" type="password" autocomplete="off" spellcheck="false" placeholder="Collez votre clé ici"><button type="button" class="sm" id="mfKeySave">Enregistrer</button><button type="button" class="quiet sm" id="mfKeyDel">Effacer</button></div>
+    <p class="note">Pour afficher la vigilance : créez un compte gratuit sur <a href="https://portail-api.meteofrance.fr" target="_blank" rel="noopener">portail-api.meteofrance.fr</a>, abonnez-vous à l'API « Bulletin Vigilance » et générez une clé (« API Key »). Elle est gardée <b>uniquement dans ce navigateur</b> et n'est envoyée qu'à Météo-France.</p><p class="msg" id="mfKeyMsg" hidden></p></div>
+  <div class="rules-b" id="rulesB"></div></dialog>
 
   <nav class="tabs" role="tablist" aria-label="Sections">
     <button type="button" role="tab" id="tab-situation" aria-controls="pane-situation" aria-selected="true">Situation générale</button>
     <button type="button" role="tab" id="tab-voler" aria-controls="pane-voler" aria-selected="false">Où voler</button>
   </nav>
   <div class="pane" id="pane-situation" role="tabpanel" aria-labelledby="tab-situation">
+  <section class="panel" id="vigi" aria-labelledby="vigi-h">
+    <div class="sec-h"><div><div class="kick">Vigilance Météo-France</div><h2 id="vigi-h" class="situ-t">Vigilance du département</h2></div><span class="sub" id="vigiWhen"></span></div>
+    <div id="vigiBody" class="vigi-body"><p class="note">Chargement…</p></div>
+  </section>
   <section class="panel" id="situ" aria-labelledby="situ-h">
     <div class="sec-h"><div><div class="kick">Situation générale</div><h2 id="situ-h" class="situ-t">Chargez un lieu pour voir la situation</h2></div><span class="sub" id="situWhen"></span></div>
     <div class="situ-grid">
@@ -418,6 +441,7 @@ footer{padding:4px 2px 0}
   </div>
   <div class="pane" id="pane-voler" role="tabpanel" aria-labelledby="tab-voler" hidden>
   <section class="panel" id="spots" aria-labelledby="spots-h">
+    <div class="vigi-banner" id="vigiBanner" hidden role="alert"></div>
     <div class="sec-h"><h2 id="spots-h">Où voler ?</h2><span class="sub" id="placeNow" aria-live="polite"></span></div>
     <form class="searchbar" id="locForm" role="search">
       <label for="city" class="sr">Lieu</label>
@@ -2363,6 +2387,7 @@ function situAnalyse(D, i) {
 }
 function renderSituation() {
   const D = S.dataset; if (!D || !D.gv) return;
+  const lk = `${$("lat").value},${$("lon").value}`; if (VIG.lastLoc !== lk) { VIG.lastLoc = lk; renderVigi(); }
   const i = S.hourIdx || 0, A = situAnalyse(D, i);
   $("situ-h").innerHTML = `${esc(S.place || "Lieu choisi")} : <span class="pill ${A.cls}" style="font-size:14px;vertical-align:middle">${esc(A.type)}</span>`;
   $("situWhen").textContent = D.times[i] ? `Autour du ${new Date(D.times[i]).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} ${D.times[i].slice(11, 16)}` : "";
@@ -2591,6 +2616,68 @@ $("frTime").addEventListener("change", e => { FR.k = +e.target.value; renderFron
 $("frPrev").addEventListener("click", () => { if (!FR.data) return; FR.k = Math.max(0, FR.k - 1); $("frTime").value = FR.k; renderFronts(); });
 $("frNext").addEventListener("click", () => { if (!FR.data) return; FR.k = Math.min(FR.data.times.length - 1, FR.k + 1); $("frTime").value = FR.k; renderFronts(); });
 
+// ---------- Vigilance Météo-France (API « Bulletin Vigilance », clé de l'utilisateur) ----------
+const VIG = { key: (() => { try { return localStorage.getItem("emagramme-mf-key") || ""; } catch { return ""; } })(), data: null, t: 0, dep: null, depFor: "" };
+const VIG_PHEN = { 1: "Vent violent", 2: "Pluie-inondation", 3: "Orages", 4: "Crues", 5: "Neige-verglas", 6: "Canicule", 7: "Grand froid", 8: "Avalanches", 9: "Vagues-submersion" };
+const VIG_COL = { 1: "Vert", 2: "Jaune", 3: "Orange", 4: "Rouge" };
+async function vigDepartment(lat, lon) {
+  const k = `${lat.toFixed(3)},${lon.toFixed(3)}`; if (VIG.depFor === k && VIG.dep) return VIG.dep;
+  const r = await getJSON(`https://geo.api.gouv.fr/communes?lat=${lat}&lon=${lon}&fields=nom,codeDepartement,departement&format=json`, 10000);
+  const c = Array.isArray(r) ? r[0] : null; if (!c) throw new Error("lieu hors de France métropolitaine");
+  VIG.dep = { code: c.codeDepartement, nom: (c.departement && c.departement.nom) || c.codeDepartement, commune: c.nom }; VIG.depFor = k; return VIG.dep;
+}
+async function vigData(force) {
+  if (!force && VIG.data && Date.now() - VIG.t < 15 * 60e3) return VIG.data;
+  const r = await getJSON("https://public-api.meteofrance.fr/public/DPVigilance/v1/cartevigilance/encours", 20000, { headers: { apikey: VIG.key, accept: "application/json" } });
+  VIG.data = r; VIG.t = Date.now(); return r;
+}
+function vigFor(data, code) {
+  const prod = data.product || data, out = [];
+  (prod.periods || []).forEach(per => {
+    const tl = per.timelaps || {}, doms = Array.isArray(tl) ? tl : (tl.domain_ids || []);
+    const d = doms.find(x => String(x.domain_id) === String(code));
+    const items = d ? (d.phenomenon_items || []).map(ph => ({ id: +ph.phenomenon_id, max: +ph.phenomenon_max_color_id,
+      ranges: (ph.timelaps_items || []).filter(t => +t.color_id > 1).map(t => ({ a: t.begin_time, b: t.end_time, c: +t.color_id })) })).filter(ph => ph.max > 1).sort((a, b) => b.max - a.max) : [];
+    out.push({ ech: per.echeance, a: per.begin_validity_time, b: per.end_validity_time, max: d ? +d.max_color_id : 1, items });
+  });
+  return { periods: out, update: prod.update_time };
+}
+const hm = t => new Date(t).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+async function renderVigi(force) {
+  const body = $("vigiBody"), banner = $("vigiBanner"), lat = +$("lat").value, lon = +$("lon").value;
+  banner.hidden = true;
+  if (!VIG.key) { $("vigi-h").textContent = "Vigilance du département";
+    body.innerHTML = `<p class="note" style="grid-column:1/-1">Ajoutez votre clé API Météo-France (gratuite) dans <button type="button" class="soft sm" data-open-rules>Paramètres</button> pour afficher ici la vigilance de votre département, aujourd'hui et demain. En attendant : <a href="https://vigilance.meteofrance.fr/fr" target="_blank" rel="noopener">carte de vigilance officielle ↗</a>.</p>`; return; }
+  try {
+    const [dep, data] = await Promise.all([vigDepartment(lat, lon), vigData(force)]);
+    const V = vigFor(data, dep.code);
+    $("vigi-h").textContent = `${dep.nom} (${dep.code})`;
+    $("vigiWhen").textContent = V.update ? `Mise à jour Météo-France : ${new Date(V.update).toLocaleString("fr-FR", { weekday: "short", hour: "2-digit", minute: "2-digit" })}` : "";
+    if (!V.periods.length) { body.innerHTML = `<p class="note">Aucune donnée de vigilance pour ce département.</p>`; return; }
+    body.innerHTML = V.periods.map(P => `<div class="vig-day"><h3>${P.ech === "J1" ? "Demain" : "Aujourd'hui"} <span class="vig-chip vig-c${P.max}">Vigilance ${VIG_COL[P.max] || "?"}</span></h3>
+      ${P.items.length ? `<ul class="vig-list">${P.items.map(it => `<li><span class="vig-chip vig-c${it.max}">${esc(VIG_PHEN[it.id] || "Phénomène " + it.id)}</span>${it.ranges.length ? `<span class="t">${it.ranges.map(r => `${VIG_COL[r.c]} de ${hm(r.a)} à ${hm(r.b)}`).join(" · ")}</span>` : ""}</li>`).join("")}</ul>` : `<p class="note" style="margin:0">Pas de vigilance particulière.</p>`}</div>`).join("")
+      + `<p class="note" style="grid-column:1/-1;margin:0">Source : Météo-France, vigilance en cours (non modifiée). <a href="https://vigilance.meteofrance.fr/fr" target="_blank" rel="noopener">Carte et bulletins officiels ↗</a></p>`;
+    // bandeau dans « Où voler » : orange ou rouge, aujourd'hui
+    const J = V.periods.find(P => P.ech !== "J1") || V.periods[0];
+    if (J && J.max >= 3) { const ph = J.items.filter(it => it.max >= 3).map(it => (VIG_PHEN[it.id] || "").toLowerCase()).join(", ");
+      banner.className = "vigi-banner c" + J.max; banner.hidden = false;
+      banner.textContent = `Vigilance ${VIG_COL[J.max].toLowerCase()} ${ph} aujourd'hui en ${dep.nom} : ${J.max >= 4 ? "vol fortement déconseillé" : "prudence, les notes ci-dessous ne tiennent pas compte de la vigilance"}.`; }
+  } catch (e) {
+    console.warn(e); const m = String(e.message || "");
+    body.innerHTML = `<p class="note" style="grid-column:1/-1">${/401|403|invalid|credential/i.test(m) ? "Clé API refusée par Météo-France : vérifiez-la dans Paramètres, et que l'abonnement à l'API « Bulletin Vigilance » est actif." : /hors de France/.test(m) ? "La vigilance Météo-France ne couvre que la France métropolitaine." : `Vigilance indisponible (${esc(m)}).`} <a href="https://vigilance.meteofrance.fr/fr" target="_blank" rel="noopener">Carte officielle ↗</a></p>`;
+  }
+}
+function vigKeyMsg(t, k) { const m = $("mfKeyMsg"); m.hidden = !t; m.className = "msg " + (k || ""); m.textContent = t || ""; }
+$("mfKey").value = VIG.key;
+$("mfKeySave").addEventListener("click", async () => { VIG.key = $("mfKey").value.trim(); VIG.data = null;
+  try { VIG.key ? localStorage.setItem("emagramme-mf-key", VIG.key) : localStorage.removeItem("emagramme-mf-key"); } catch {}
+  if (!VIG.key) { vigKeyMsg(""); renderVigi(); return; }
+  vigKeyMsg("Vérification de la clé…");
+  try { await vigData(true); vigKeyMsg("Clé valide : la vigilance s'affiche dans l'onglet Situation générale.", "ok"); } catch (e) { vigKeyMsg("Clé refusée ou API inaccessible : " + e.message, "err"); }
+  renderVigi(); });
+$("mfKeyDel").addEventListener("click", () => { VIG.key = ""; VIG.data = null; $("mfKey").value = ""; try { localStorage.removeItem("emagramme-mf-key"); } catch {} vigKeyMsg("Clé effacée.", "ok"); renderVigi(); });
+document.addEventListener("click", e => { if (e.target.closest("[data-open-rules]")) $("rulesBtn").click(); });
+
 // ---------- Démarrage ----------
 const saved = store.get();
 if (saved) { $("lat").value = saved.lat; $("lon").value = saved.lon; if (saved.model) $("model").value = saved.model; S.place = saved.place || ""; }
@@ -2608,6 +2695,7 @@ function openAtPosition() {
     S.place = "Ma position"; SP.here = true; SP.posNote = ""; updateLink(); showPlace(); tryFetch(); searchSpots();
   }, err => fallback(err && err.code === 1 ? "Position non autorisée." : "Position introuvable."), { timeout: 10000, maximumAge: 10 * 60e3 });
 }
+renderVigi();
 openAtPosition();
 let tab0 = location.hash.slice(1); if (!TABS.includes(tab0)) { try { tab0 = localStorage.getItem("emagramme-tab") || "situation"; } catch { tab0 = "situation"; } }
 switchTab(tab0, false);
