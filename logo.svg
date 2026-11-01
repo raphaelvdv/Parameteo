@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="t">
+  <title id="t">Parameteo</title>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d4677"/>
+      <stop offset="1" stop-color="#13233a"/>
+    </linearGradient>
+    <clipPath id="badge"><rect width="256" height="256" rx="48"/></clipPath>
+    <clipPath id="front"><path d="M-10 236 L58 172 L92 198 L142 138 L204 206 L266 186 V266 H-10 Z"/></clipPath>
+  </defs>
+  <g clip-path="url(#badge)">
+    <rect width="256" height="256" fill="url(#sky)"/>
+    <!-- isothermes inclinées à 45° (émagramme 761) -->
+    <g stroke="#6aa7ef" stroke-width="2" opacity=".28">
+      <path d="M60 266 L266 60"/><path d="M110 266 L266 110"/><path d="M10 266 L266 10"/><path d="M-40 266 L226 0"/>
+    </g>
+    <!-- cumulus -->
+    <g fill="#ffffff">
+      <circle cx="52" cy="78" r="15"/><circle cx="72" cy="66" r="20"/><circle cx="94" cy="78" r="14"/>
+      <rect x="40" y="78" width="66" height="14" rx="7"/>
+    </g>
+    <!-- relief arrière -->
+    <path d="M-10 214 L66 126 L100 160 L148 100 L214 178 L266 150 V266 H-10 Z" fill="#2d5486"/>
+    <!-- relief avant avec courbes de niveau -->
+    <path d="M-10 236 L58 172 L92 198 L142 138 L204 206 L266 186 V266 H-10 Z" fill="#e3ecf3"/>
+    <g clip-path="url(#front)" fill="none" stroke="#a9773f" stroke-width="3" stroke-linejoin="round" opacity=".9">
+      <path d="M-10 254 L58 192 L92 216 L142 160 L204 226 L266 206"/>
+      <path d="M-10 272 L58 212 L92 234 L142 182 L204 246 L266 226"/>
+    </g>
+    <!-- ascendance thermique depuis la pente -->
+    <path d="M118 166 C 98 138, 150 128, 128 104 S 150 84, 156 70" fill="none" stroke="#e86aae" stroke-width="5" stroke-linecap="round" stroke-dasharray="8 8"/>
+    <!-- parapente : suspentes, voile, pilote -->
+    <g stroke="#e3ecf3" stroke-width="1.6" opacity=".85">
+      <path d="M118 52 L170 98"/><path d="M140 40 L170 98"/><path d="M170 36 L170 98"/><path d="M200 40 L170 98"/><path d="M222 52 L170 98"/>
+    </g>
+    <path d="M112 54 Q170 4 228 54 L221 62 Q170 22 119 62 Z" fill="#e86aae"/>
+    <g stroke="#13233a" stroke-width="1.6" opacity=".45">
+      <path d="M140 33 L143 42"/><path d="M170 26 L170 35"/><path d="M200 33 L197 42"/>
+    </g>
+    <circle cx="170" cy="102" r="6" fill="#ffffff"/>
+  </g>
+</svg>
