@@ -163,6 +163,16 @@ dt[title],.stat .k[title],th[title],.tip{cursor:help;text-decoration:underline d
 .bal svg{width:16px;height:16px;display:block}
 .bal.good{color:var(--good)}.bal.warn{color:var(--warn)}.bal.bad{color:var(--bad)}.bal.mute{color:var(--muted)}
 .why .info{color:var(--muted)}
+dialog#rules{width:min(820px,calc(100% - 32px));max-height:86vh;padding:0;border:1px solid var(--rule);border-radius:3px;background:var(--surface);color:var(--ink)}
+dialog#rules::backdrop{background:rgba(10,15,30,.45)}
+.rules-h{position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;background:var(--surface);border-bottom:1px solid var(--rule);z-index:1}
+.rules-h h2{color:var(--ink);font-size:18px}
+.rules-b{padding:4px 18px 18px;display:grid;gap:6px;font-size:14px}
+.rules-b h3{font-size:16px;margin-top:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent)}
+.rules-b p{margin:0;color:var(--muted)}
+.rules-b table{font-family:var(--f-body);font-size:13.5px}
+.rules-b td,.rules-b th{text-align:left;white-space:normal;vertical-align:top}
+.rules-b td.r{text-align:right;font-family:var(--f-mono);white-space:nowrap}
 .ffvl{font-size:12.5px;display:grid;gap:3px;margin:4px 0 2px}
 .ffvl .r{color:var(--muted)}
 .why-h{font-family:var(--f-display);font-weight:600;font-size:13px;margin-top:6px}
@@ -196,7 +206,7 @@ dt[title],.stat .k[title],th[title],.tip{cursor:help;text-decoration:underline d
       <p>Émagramme incliné à 45° (type 761) avec ascendance de particule, CAPE/CIN, base des cumulus et plafond thermique. La prévision est téléchargée directement depuis Open-Meteo. Survolez le diagramme pour lire chaque niveau.</p>
       </div>
     </div>
-    <div class="hdr-actions"><button id="readBtn" type="button">Lecture commentée</button><button id="tutBtn" type="button" class="ghost">Apprendre à lire un émagramme</button><span id="srcBadge" class="badge ex">Exemple fictif</span></div>
+    <div class="hdr-actions"><button id="rulesBtn" type="button" class="ghost" aria-haspopup="dialog">Paramètres</button><button id="readBtn" type="button">Lecture commentée</button><button id="tutBtn" type="button" class="ghost">Apprendre à lire un émagramme</button><span id="srcBadge" class="badge ex">Exemple fictif</span></div>
   </header>
 
   <section class="panel source" aria-labelledby="src-h">
@@ -249,11 +259,13 @@ dt[title],.stat .k[title],th[title],.tip{cursor:help;text-decoration:underline d
     </details>
   </section>
 
+  <dialog id="rules" aria-labelledby="rules-t"><div class="rules-h"><h2 id="rules-t">Paramètres : règles de notation</h2><button type="button" class="ghost sm" id="rulesX">Fermer</button></div><div class="rules-b" id="rulesB"></div></dialog>
+
   <section class="panel" id="spots" aria-labelledby="spots-h">
     <h2 id="spots-h">Sites de vol autour du point</h2>
     <div class="row" style="margin-top:10px">
       <div class="field"><label for="radius">Rayon</label><select id="radius"><option value="10">10 km</option><option value="25" selected>25 km</option><option value="40">40 km</option><option value="60">60 km</option></select></div>
-      <div class="field"><label for="spotHour">Jour et heure</label><select id="spotHour"><option value="">—</option></select></div>
+      <div class="field"><label for="spotHour">Jour et heure</label><div style="display:flex;gap:6px"><select id="spotHour"><option value="">—</option></select><button id="nowBtn" type="button" class="ghost" title="Choisir l'heure actuelle pour comparer avec les balises">Maintenant</button></div></div>
       <div class="field"><label for="spotDT">Chauffe des pentes (°C)</label><input id="spotDT" type="number" step="0.5" min="0" max="8" value="3"></div>
       <div class="field"><label for="spotN" title="Moins de sites notés = prévision plus rapide">Sites notés</label><select id="spotN"><option value="15">15 plus proches</option><option value="25" selected>25 plus proches</option><option value="40">40 plus proches</option></select></div>
       <button id="spotsBtn" type="button">Chercher les sites et les noter</button>
@@ -267,10 +279,10 @@ dt[title],.stat .k[title],th[title],.tip{cursor:help;text-decoration:underline d
     <p id="spotsMsg" class="msg" hidden></p>
     <div class="spots-grid">
       <div id="map">La carte s'affiche après la recherche.<br>Centre : les coordonnées de la source du sondage.</div>
-      <div class="spots-list"><table id="spotTbl"><thead><tr><th class="r" title="Note décollage /100 : vent, axe, rafales, pluie, nuage, orage">Déco</th><th class="r" title="Note thermique /100 : plafond, vigueur, soleil, cumulus, vent en altitude, orage">Therm.</th><th>Décollage</th><th class="r">Alt.</th><th class="r">Dist.</th><th title="Vent prévu à l'altitude du décollage">Vent déco</th><th class="r" title="Plafond thermique retenu">Plafond</th></tr></thead>
-        <tbody><tr><td colspan="7" class="sub">Lancez la recherche pour lister les décollages, du mieux noté au moins bien noté.</td></tr></tbody></table></div>
+      <div class="spots-list"><table id="spotTbl"><thead><tr><th class="r" title="Note décollage /100 : vent, axe, rafales, pluie, nuage, orage">Déco</th><th class="r" title="Note thermique /100 : plafond, vigueur, soleil, cumulus, vent en altitude, orage">Therm.</th><th>Décollage</th><th class="r">Alt.</th><th class="r">Dist.</th><th title="Vent prévu à l'altitude du décollage (km/h)">Vent prévu</th><th title="Balise la plus proche : vent moyen/rafale mesuré (km/h). Coloré quand la comparaison est active">Balise</th><th class="r" title="Plafond thermique retenu">Plafond</th></tr></thead>
+        <tbody><tr><td colspan="8" class="sub">Lancez la recherche pour lister les décollages, du mieux noté au moins bien noté.</td></tr></tbody></table></div>
     </div>
-    <p class="note" style="margin-top:10px">Sites et balises : données officielles de la FFVL (open data data.gouv.fr, terrains mis à jour chaque jour, relevés toutes les 5 min), complétées si vous le cochez par OpenStreetMap et ParaglidingEarth. Vérifiez toujours la fiche du site et les consignes du club local. Deux notes sur 100, indicatives, d'après la prévision du modèle. <b>Déco</b> : vent au décollage et dans l'axe, rafales, pluie, nuage au déco, orage. <b>Thermique</b> : hauteur du plafond au-dessus du déco, vigueur des thermiques, soleil, cumulus, vent dans la couche, orage. Sur la carte, la pastille montre la note déco à gauche et la note thermique à droite ; les flèches sont les balises (vers où souffle le vent, vitesse moyenne/rafale en km/h). Quand l'heure choisie est à moins de 1 h 30 de maintenant, le vent d'une balise fraîche (moins d'1 h), proche du déco (5 km, 400 m de dénivelé) remplace la prévision dans la note déco. La liste est triée par la moyenne des deux, un déco noté sous 40 passant en fin de liste.</p>
+    <p class="note" style="margin-top:10px">Sites et balises : données officielles de la FFVL (open data data.gouv.fr, terrains mis à jour chaque jour, relevés toutes les 5 min), complétées si vous le cochez par OpenStreetMap et ParaglidingEarth. Vérifiez toujours la fiche du site et les consignes du club local. Deux notes sur 100, indicatives, d'après la prévision du modèle. <b>Déco</b> : vent au décollage et dans l'axe, rafales, pluie, nuage au déco, orage. <b>Thermique</b> : hauteur du plafond au-dessus du déco, vigueur des thermiques, soleil, cumulus, vent dans la couche, orage. Sur la carte, la pastille montre la note déco à gauche et la note thermique à droite ; les flèches sont les balises (vers où souffle le vent, vitesse moyenne/rafale en km/h). Les notes reposent uniquement sur la prévision. Quand l'heure choisie approche (moins de 2 h, bouton « Maintenant »), la colonne « Balise » et la fiche comparent la prévision au vent mesuré. Toutes les règles sont détaillées dans « Paramètres ». La liste est triée par la moyenne des deux, un déco noté sous 40 passant en fin de liste.</p>
   </section>
 
   <div class="main">
@@ -1431,54 +1443,95 @@ function analyzeSpot(site, D, i) {
   } finally { Object.assign(S, save); }
 }
 const clamp01 = v => Math.max(0, Math.min(1, v));
-const cls100 = v => v >= 70 ? "good" : v >= 40 ? "warn" : "bad";
-function scoreSpot(site, r, obs) {
-  // ---- Note décollage
+// Toutes les règles de notation (affichées en lecture seule dans « Paramètres »)
+const RULES = Object.freeze({
+  deco: {
+    interdit: 100, autorisation: 5,
+    rain: [[1, 60, "bad", "Pluie"], [0.2, 30, "warn", "Averses ou bruine"]],
+    wind: [[30, 60, "bad", "Vent trop fort au déco"], [25, 30, "warn", "Vent fort au déco"], [20, 15, "warn", "Vent soutenu au déco"]],
+    windUnknown: 10, calm: 8,
+    axis: { ok: 22.5, offset: 45, offsetPen: 5, cross: 90, crossPen: 15, back: 40, backStrong: 15, backStrongPen: 60, unknown: 5 },
+    nok: 30,
+    gust: [[45, 40, "bad"], [35, 20, "warn"]],
+    cloud: { spread: 1, pen: 30, low: 90, lowSpread: 3, lowPen: 15 },
+    storm: { cape: 1000, cin: -50, pen: 30, capeOver: 300, cinOver: -100, penOver: 15 } },
+  therm: { hFull: 1500, hPts: 55, excFull: 1.5, excPts: 25, sun: [[50, 10], [80, 5]], cuMin: 500, cuPts: 10, bluePts: 5,
+    wind: [[30, 25], [20, 12]], rain: [[1, 50], [0.2, 25]], storm: 30, over: 12, noThermMax: 10 },
+  cls: { good: 70, warn: 40 }, rankCut: 40,
+  cmp: { window: 2, dist: 10, dz: 600, near: 5, nearDz: 400, fresh: 60, dSpeed: 8, dDir: 45, gustWarn: 30, gustBad: 40, strong: 25 }
+});
+const cls100 = v => v >= RULES.cls.good ? "good" : v >= RULES.cls.warn ? "warn" : "bad";
+function scoreSpot(site, r) {
+  const R = RULES.deco;
+  // ---- Note décollage : prévision uniquement
   const wd = []; let D = 100; const dpen = (p, t, c) => { D -= p; wd.push({ t, cls: c }); };
-  const useObs = !!(obs && obs.use), W = useObs ? { spd: obs.avg / 1.852, dir: obs.dir } : r.wind;
-  const kmh = W ? W.spd * 1.852 : null;
-  const F = site.ffvl;
-  if (F) { if (F.st === "interdit") dpen(100, "Site interdit (FFVL)", "bad"); else if (F.st === "interdit_sauf_autorisation") dpen(100, "Interdit sauf autorisation (FFVL)", "bad");
-    else if (F.st === "actif_autorisation_systematique_requise") dpen(5, "Autorisation systématique requise (FFVL)", "warn");
+  const W = r.wind, kmh = W ? W.spd * 1.852 : null, F = site.ffvl;
+  if (F) { if (F.st === "interdit") dpen(R.interdit, "Site interdit (FFVL)", "bad"); else if (F.st === "interdit_sauf_autorisation") dpen(R.interdit, "Interdit sauf autorisation (FFVL)", "bad");
+    else if (F.st === "actif_autorisation_systematique_requise") dpen(R.autorisation, "Autorisation systématique requise (FFVL)", "warn");
     if (F.al) wd.push({ t: "Alerte FFVL : " + F.al, cls: "bad" }); }
-  if (r.rain !== null && r.rain >= 1) dpen(60, `Pluie (${fr(r.rain)} mm/h)`, "bad"); else if (r.rain !== null && r.rain >= 0.2) dpen(30, `Averses ou bruine (${fr(r.rain)} mm/h)`, "warn");
-  if (kmh === null) dpen(10, "Vent au déco inconnu", "warn");
-  else { const wtxt = `${abbr(W.dir)} ${Math.round(kmh)} km/h${useObs ? " mesuré" : ""}`;
-    if (kmh > 30) dpen(60, `Vent trop fort au déco (${wtxt})`, "bad"); else if (kmh > 25) dpen(30, `Vent fort au déco (${wtxt})`, "warn"); else if (kmh > 20) dpen(15, `Vent soutenu au déco (${wtxt})`, "warn");
-    if (!site.ori.length) dpen(5, "Orientation du déco inconnue", "warn");
-    else if (kmh < 8) wd.push({ t: `Vent faible (${wtxt}) : brise thermique`, cls: "good" });
+  if (r.rain !== null) { const x = R.rain.find(([mm]) => r.rain >= mm); if (x) dpen(x[1], `${x[3]} (${fr(r.rain)} mm/h)`, x[2]); }
+  if (kmh === null) dpen(R.windUnknown, "Vent au déco inconnu", "warn");
+  else { const wtxt = `${abbr(W.dir)} ${Math.round(kmh)} km/h`;
+    const x = R.wind.find(([v]) => kmh > v); if (x) dpen(x[1], `${x[3]} (${wtxt})`, x[2]);
+    const A = R.axis;
+    if (!site.ori.length) dpen(A.unknown, "Orientation du déco inconnue", "warn");
+    else if (kmh < R.calm) wd.push({ t: `Vent faible (${wtxt}) : brise thermique`, cls: "good" });
     else { const d = Math.min(...site.ori.map(o => angDiff(o, W.dir)));
-      if (d <= 22.5) wd.push({ t: `Vent dans l'axe (${wtxt})`, cls: "good" }); else if (d <= 45) dpen(5, `Vent légèrement décalé (${wtxt})`, "good");
-      else if (d <= 90) dpen(15, `Vent de travers (${wtxt})`, "warn"); else dpen(kmh >= 15 ? 60 : 40, `Vent arrière au déco (${wtxt})`, "bad"); }
-    if (kmh <= 20 && wd.every(x => x.cls === "good")) wd.push({ t: "Force du vent compatible", cls: "good" }); }
-  if (W && kmh >= 8 && site.nok && site.nok.length && Math.min(...site.nok.map(o => angDiff(o, W.dir))) <= 22.5 && !(site.ori.length && Math.min(...site.ori.map(o => angDiff(o, W.dir))) <= 22.5))
-    dpen(30, `Vent ${abbr(W.dir)} déconseillé pour ce déco (FFVL)`, "bad");
-  const gk = useObs ? null : (r.gust !== null ? r.gust * 1.852 : null);
-  if (useObs) { if (obs.max > 40) dpen(40, `Rafales mesurées ${Math.round(obs.max)} km/h`, "bad"); else if (obs.max > 30) dpen(20, `Rafales mesurées ${Math.round(obs.max)} km/h`, "warn"); else if (obs.max - obs.avg > 15) dpen(10, "Vent rafaleux à la balise", "warn"); }
-  if (obs) wd.push({ t: beaconLine(obs) + (useObs ? " : utilisée pour la note" : " : non utilisée (heure, distance ou fraîcheur)"), cls: "info" });
-  if (gk !== null && gk > 45) dpen(40, `Rafales ${Math.round(gk)} km/h en plaine`, "bad"); else if (gk !== null && gk > 35) dpen(20, `Rafales ${Math.round(gk)} km/h en plaine`, "warn");
-  if (r.spread !== null && r.spread <= 1) dpen(30, "Déco probablement dans le nuage", "bad"); else if (r.low !== null && r.low >= 90 && r.spread !== null && r.spread <= 3) dpen(15, "Plafond nuageux bas", "warn");
-  const a = r.a, storm = a.lfcI >= 0 && a.cape >= 1000 && a.cin > -50, over = !storm && a.lfcI >= 0 && a.cape >= 300 && a.cin > -100;
-  if (storm) dpen(30, `Risque d'orage (CAPE ${Math.round(a.cape)})`, "bad"); else if (over) dpen(15, `Surdéveloppement possible (CAPE ${Math.round(a.cape)})`, "warn");
+      if (d <= A.ok) wd.push({ t: `Vent dans l'axe (${wtxt})`, cls: "good" }); else if (d <= A.offset) dpen(A.offsetPen, `Vent légèrement décalé (${wtxt})`, "good");
+      else if (d <= A.cross) dpen(A.crossPen, `Vent de travers (${wtxt})`, "warn"); else dpen(kmh >= A.backStrong ? A.backStrongPen : A.back, `Vent arrière au déco (${wtxt})`, "bad"); }
+    if (!x && wd.every(y => y.cls === "good")) wd.push({ t: "Force du vent compatible", cls: "good" });
+    if (kmh >= R.calm && site.nok && site.nok.length && Math.min(...site.nok.map(o => angDiff(o, W.dir))) <= A.ok && !(site.ori.length && Math.min(...site.ori.map(o => angDiff(o, W.dir))) <= A.ok))
+      dpen(R.nok, `Vent ${abbr(W.dir)} déconseillé pour ce déco (FFVL)`, "bad"); }
+  const gk = r.gust !== null ? r.gust * 1.852 : null;
+  if (gk !== null) { const x = R.gust.find(([v]) => gk > v); if (x) dpen(x[1], `Rafales ${Math.round(gk)} km/h en plaine`, x[2]); }
+  if (r.spread !== null && r.spread <= R.cloud.spread) dpen(R.cloud.pen, "Déco probablement dans le nuage", "bad");
+  else if (r.low !== null && r.low >= R.cloud.low && r.spread !== null && r.spread <= R.cloud.lowSpread) dpen(R.cloud.lowPen, "Plafond nuageux bas", "warn");
+  const a = r.a, S0 = R.storm, storm = a.lfcI >= 0 && a.cape >= S0.cape && a.cin > S0.cin, over = !storm && a.lfcI >= 0 && a.cape >= S0.capeOver && a.cin > S0.cinOver;
+  if (storm) dpen(S0.pen, `Risque d'orage (CAPE ${Math.round(a.cape)})`, "bad"); else if (over) dpen(S0.penOver, `Surdéveloppement possible (CAPE ${Math.round(a.cape)})`, "warn");
   D = Math.round(Math.max(0, Math.min(100, D)));
   // ---- Note thermique (en local, au-dessus du déco)
-  const wt = []; let T = 0;
+  const Q = RULES.therm, wt = []; let T = 0;
   const h = r.ceilZ !== null ? r.ceilZ - r.z : 0;
-  const hs = clamp01(h / 1500) * 55; T += hs;
+  T += clamp01(h / Q.hFull) * Q.hPts;
   wt.push(h > 0 ? { t: `${a.cumulus ? "Base des cumulus" : "Plafond"} ${zr(r.ceilZ)}, soit +${zr(h)} au-dessus du déco`, cls: h >= 1000 ? "good" : h >= 400 ? "warn" : "bad" } : { t: "Pas de thermique au-dessus du déco (plouf)", cls: "bad" });
-  if (h > 0 && r.exc !== null) { T += clamp01(r.exc / 1.5) * 25;
+  if (h > 0 && r.exc !== null) { T += clamp01(r.exc / Q.excFull) * Q.excPts;
     wt.push(r.exc >= 1 ? { t: "Thermiques francs", cls: "good" } : r.exc >= 0.5 ? { t: "Thermiques modérés", cls: "warn" } : { t: "Thermiques faibles", cls: "bad" }); }
-  if (r.low === null || r.low < 50) T += 10; else if (r.low < 80) { T += 5; wt.push({ t: `Soleil voilé (nuages bas ${Math.round(r.low)} %)`, cls: "warn" }); } else wt.push({ t: `Peu de soleil (nuages bas ${Math.round(r.low)} %)`, cls: "bad" });
-  if (h > 0) { if (a.cumulus && h >= 500) { T += 10; wt.push({ t: "Cumulus pour marquer les thermiques", cls: "good" }); } else if (!a.cumulus) { T += 5; wt.push({ t: "Thermiques bleus (sans cumulus)", cls: "warn" }); } }
+  if (r.low === null || r.low < Q.sun[0][0]) T += Q.sun[0][1]; else if (r.low < Q.sun[1][0]) { T += Q.sun[1][1]; wt.push({ t: `Soleil voilé (nuages bas ${Math.round(r.low)} %)`, cls: "warn" }); } else wt.push({ t: `Peu de soleil (nuages bas ${Math.round(r.low)} %)`, cls: "bad" });
+  if (h > 0) { if (a.cumulus && h >= Q.cuMin) { T += Q.cuPts; wt.push({ t: "Cumulus pour marquer les thermiques", cls: "good" }); } else if (!a.cumulus) { T += Q.bluePts; wt.push({ t: "Thermiques bleus (sans cumulus)", cls: "warn" }); } }
   if (r.diag === "lid") wt.push({ t: "Couvercle sous les crêtes : vallée stable, rester près du relief", cls: "warn" });
-  if (r.wmax !== null && r.wmax > 30) { T -= 25; wt.push({ t: `Vent fort dans la couche (${Math.round(r.wmax)} km/h)`, cls: "bad" }); }
-  else if (r.wmax !== null && r.wmax > 20) { T -= 12; wt.push({ t: `Thermiques cisaillés (vent ${Math.round(r.wmax)} km/h)`, cls: "warn" }); }
-  if (r.rain !== null && r.rain >= 1) { T -= 50; wt.push({ t: "Pluie", cls: "bad" }); } else if (r.rain !== null && r.rain >= 0.2) { T -= 25; wt.push({ t: "Averses", cls: "warn" }); }
-  if (storm) { T -= 30; wt.push({ t: "Risque d'orage", cls: "bad" }); } else if (over) { T -= 12; wt.push({ t: "Surdéveloppement possible", cls: "warn" }); }
-  if (h <= 0) T = Math.min(T, 10);
+  if (r.wmax !== null) { const x = Q.wind.find(([v]) => r.wmax > v); if (x) { T -= x[1]; wt.push({ t: x[0] === Q.wind[0][0] ? `Vent fort dans la couche (${Math.round(r.wmax)} km/h)` : `Thermiques cisaillés (vent ${Math.round(r.wmax)} km/h)`, cls: x[0] === Q.wind[0][0] ? "bad" : "warn" }); } }
+  if (r.rain !== null) { const x = Q.rain.find(([mm]) => r.rain >= mm); if (x) { T -= x[1]; wt.push({ t: x[0] >= 1 ? "Pluie" : "Averses", cls: x[0] >= 1 ? "bad" : "warn" }); } }
+  if (storm) { T -= Q.storm; wt.push({ t: "Risque d'orage", cls: "bad" }); } else if (over) { T -= Q.over; wt.push({ t: "Surdéveloppement possible", cls: "warn" }); }
+  if (h <= 0) T = Math.min(T, Q.noThermMax);
   T = Math.round(Math.max(0, Math.min(100, T)));
-  const rank = D < 40 ? D / 2 : (D + T) / 2;
+  const rank = D < RULES.rankCut ? D / 2 : (D + T) / 2;
   return { D, T, dc: cls100(D), tc: cls100(T), wd, wt, rank };
+}
+// Comparaison prévu / mesuré, quand l'heure choisie approche
+const hoursFromNow = i => SP.times[i] ? Math.abs(new Date(SP.times[i]) - Date.now()) / 3.6e6 : 99;
+function compareBeacon(site, r, obs, i) {
+  if (!obs) return null;
+  const C = RULES.cmp; if (hoursFromNow(i) > C.window) return { active: false };
+  const it = [], fk = r.wind ? r.wind.spd * 1.852 : null, fd = r.wind ? r.wind.dir : null;
+  if (obs.ageMin > C.fresh) it.push({ t: `Mesure ancienne (${agoTxt(obs)})`, cls: "warn" });
+  if (obs.d > C.near || obs.dz > C.nearDz) it.push({ t: `Balise éloignée (${fr(obs.d)} km, ${Math.round(obs.dz)} m de dénivelé) : à interpréter avec prudence`, cls: "info" });
+  if (fk !== null) { const ds = obs.avg - fk;
+    if (ds >= C.dSpeed) it.push({ t: `Plus fort que prévu : ${Math.round(obs.avg)} km/h mesurés pour ${Math.round(fk)} prévus`, cls: obs.avg > C.strong ? "bad" : "warn" });
+    else if (ds <= -C.dSpeed) it.push({ t: `Plus faible que prévu : ${Math.round(obs.avg)} km/h mesurés pour ${Math.round(fk)} prévus`, cls: "info" });
+    else it.push({ t: `Force conforme : ${Math.round(obs.avg)} km/h mesurés, ${Math.round(fk)} prévus`, cls: "good" });
+    if (obs.avg >= RULES.deco.calm && fk >= RULES.deco.calm) { const dd = angDiff(obs.dir, fd);
+      it.push(dd > C.dDir ? { t: `Direction différente : ${abbr(obs.dir)} mesuré, ${abbr(fd)} prévu`, cls: "warn" } : { t: `Direction conforme (${abbr(obs.dir)})`, cls: "good" }); } }
+  if (obs.max > C.gustBad) it.push({ t: `Rafales mesurées ${Math.round(obs.max)} km/h`, cls: "bad" }); else if (obs.max > C.gustWarn) it.push({ t: `Rafales mesurées ${Math.round(obs.max)} km/h`, cls: "warn" });
+  if (obs.avg >= RULES.deco.calm && site.ori.length) { const d = Math.min(...site.ori.map(o => angDiff(o, obs.dir)));
+    it.push(d <= RULES.deco.axis.offset ? { t: "Vent mesuré dans l'axe du déco", cls: "good" } : d <= RULES.deco.axis.cross ? { t: "Vent mesuré de travers au déco", cls: "warn" } : { t: "Vent mesuré arrière au déco", cls: "bad" }); }
+  const v = it.some(x => x.cls === "bad") ? ["bad", "Défavorable"] : it.some(x => x.cls === "warn") ? ["warn", "Écart avec la prévision"] : ["good", "Conforme à la prévision"];
+  return { active: true, it, v };
+}
+function cmpHtml(t) {
+  const o = t.obs, c = t.cmp;
+  if (!o) return `<div class="why-h">Prévu / mesuré</div><div class="meta">Aucune balise à moins de ${RULES.cmp.dist} km et ${RULES.cmp.dz} m de dénivelé.</div>`;
+  if (!c || !c.active) return `<div class="why-h">Prévu / mesuré</div><div class="meta">${esc(beaconLine(o))}. La comparaison s'active quand l'heure choisie est à moins de ${RULES.cmp.window} h de maintenant (bouton « Maintenant »).</div>`;
+  return `<div class="why-h">Prévu / mesuré <span class="pill ${c.v[0]}">${c.v[1]}</span></div><div class="meta">${esc(beaconLine(o))}</div><ul class="why">${c.it.map(w => `<li class="${w.cls}">${esc(w.t)}</li>`).join("")}</ul>`;
 }
 function nearestLanding(t) { let best = null, d = 1e9;
   SP.landings.forEach(l => { const k = distKm(t.lat, t.lon, l.lat, l.lon); if (k < d) { d = k; best = l; } });
@@ -1499,6 +1552,7 @@ function popupHtml(t) { const r = t.res, sc = t.sc, nl = nearestLanding(t);
   const li = arr => `<ul class="why">${arr.map(w => `<li class="${w.cls}">${esc(w.t)}</li>`).join("")}</ul>`;
   return `<div class="pop"><h4>${esc(t.name)}</h4><div class="meta">${t.alt != null ? Math.round(t.alt) + " m" : "alt. ?"} · ${t.ori.length ? [...new Set(t.ori.map(abbr))].join(", ") : "orientation ?"} · ${fr(t.dist)} km · plafond ${r.prim}</div>${ffvlHtml(t)}
     <div class="why-h">Décollage <span class="score ${sc.dc}">${sc.D}</span></div>${li(sc.wd)}
+    ${cmpHtml(t)}
     <div class="why-h">Thermique en local <span class="score ${sc.tc}">${sc.T}</span></div>${li(sc.wt)}
     <div class="meta">${nl ? `Atterro le plus proche : ${esc(nl.l.name)} (${fr(nl.d)} km${nl.l.alt != null && t.alt != null ? `, ${Math.round(t.alt - nl.l.alt)} m de dénivelé` : ""})` : "Pas d'atterrissage référencé à moins de 8 km"}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button type="button" class="sm" data-spot="${esc(t.id)}">Voir le sondage</button><a href="${esc(t.url)}" target="_blank" rel="noopener">${t.src === "FFVL" ? "Rechercher le site sur ffvl.fr" : "Fiche " + esc(t.src)} ↗</a></div></div>`; }
@@ -1510,8 +1564,9 @@ function renderSpots() {
     return `<tr data-row="${esc(t.id)}"><td class="r"><span class="score ${sc.dc}">${sc.D}</span></td><td class="r"><span class="score ${sc.tc}">${sc.T}</span></td>
       <td><div class="nm">${esc(t.name)}</div><div class="sub">${t.ffvl && t.ffvl.st !== "actif" ? `<b style="color:var(--${(ST_FFVL[t.ffvl.st] || ["warn"])[0]})">${esc((ST_FFVL[t.ffvl.st] || [0, t.ffvl.st])[1])}</b> · ` : ""}${t.ori.length ? [...new Set(t.ori.map(abbr))].join(", ") : "orientation ?"} · ${esc(worst ? worst.t : "conditions favorables")}</div><button type="button" class="ghost sm" style="margin-top:4px" data-spot="${esc(t.id)}">Voir le sondage</button></td>
       <td class="r">${t.alt != null ? Math.round(t.alt) : "—"}</td><td class="r">${fr(t.dist)}</td>
-      <td>${t.obs && t.obs.use ? `<span title="Mesuré : ${esc(t.obs.name)}">${abbr(t.obs.dir)} ${Math.round(t.obs.avg)}●</span>` : w ? `${abbr(w.dir)} ${Math.round(w.spd * 1.852)}` : "—"}</td><td class="r">${r.ceilZ !== null ? Math.round(r.ceilZ) : "—"}</td></tr>`; }).join("")
-    : `<tr><td colspan="7" class="sub">Aucun décollage noté.</td></tr>`;
+      <td>${w ? `${abbr(w.dir)} ${Math.round(w.spd * 1.852)}` : "—"}</td>
+      <td>${t.obs ? (t.cmp && t.cmp.active ? `<span class="pill ${t.cmp.v[0]}" title="${esc(t.cmp.v[1] + " · " + t.obs.name)}">${abbr(t.obs.dir)} ${Math.round(t.obs.avg)}/${Math.round(t.obs.max)}</span>` : `<span class="sub" title="Mesure actuelle, comparaison inactive à cette heure">${abbr(t.obs.dir)} ${Math.round(t.obs.avg)}/${Math.round(t.obs.max)}</span>`) : "—"}</td><td class="r">${r.ceilZ !== null ? Math.round(r.ceilZ) : "—"}</td></tr>`; }).join("")
+    : `<tr><td colspan="8" class="sub">Aucun décollage noté.</td></tr>`;
   if (!initMap()) return;
   SP.layer.clearLayers();
   const c = SP.center; L.circle([c.lat, c.lon], { radius: c.r * 1000, color: getComputedStyle(document.documentElement).getPropertyValue("--accent"), weight: 1.5, fillOpacity: 0.04 }).addTo(SP.layer);
@@ -1528,10 +1583,10 @@ function renderSpots() {
 function scoreAll() {
   const i = SP.hour;
   SP.takeoffs.forEach((t, k) => { t.res = null; t.sc = null; const d = SP.data[k]; if (!d) return;
-    try { t.res = analyzeSpot(t, d, i); t.obs = beaconFor(t, i); t.sc = scoreSpot(t, t.res, t.obs); } catch (e) { console.warn("Site non noté", t.name, e); } });
+    try { t.res = analyzeSpot(t, d, i); t.obs = beaconFor(t, i); t.sc = scoreSpot(t, t.res); t.cmp = compareBeacon(t, t.res, t.obs, i); } catch (e) { console.warn("Site non noté", t.name, e); } });
   renderSpots();
   const best = SP.takeoffs.filter(t => t.sc).sort((a, b) => b.sc.rank - a.sc.rank)[0];
-  spotMsg(`${SP.takeoffs.filter(t => t.sc).length} décollages notés, ${SP.landings.length} atterrissage${SP.landings.length > 1 ? "s" : ""}. ${best ? `Meilleur : ${best.name} (déco ${best.sc.D}/100, thermique ${best.sc.T}/100).` : ""} ${SP.balTxt || ""}${SP.srcNote ? " " + SP.srcNote + "." : ""} ${SP.timing || ""}`, "ok");
+  spotMsg(`${SP.takeoffs.filter(t => t.sc).length} décollages notés, ${SP.landings.length} atterrissage${SP.landings.length > 1 ? "s" : ""}. ${best ? `Meilleur : ${best.name} (déco ${best.sc.D}/100, thermique ${best.sc.T}/100).` : ""} ${SP.balTxt || ""}${SP.srcNote ? " " + SP.srcNote + "." : ""} ${SP.beacons.length ? (hoursFromNow(i) <= RULES.cmp.window ? "Comparaison avec les balises active." : `Comparaison avec les balises : disponible à moins de ${RULES.cmp.window} h de l'heure choisie.`) : ""} ${SP.timing || ""}`, "ok");
 }
 async function searchSpots() {
   const lat = +$("lat").value, lon = +$("lon").value, r = +$("radius").value;
@@ -1648,6 +1703,9 @@ function loadSpot(id) {
 $("spotsBtn").addEventListener("click", searchSpots);
 $("spotsRefresh").addEventListener("click", () => { SP.noCache = true; searchSpots(); });
 $("spotHour").addEventListener("change", e => { if (!SP.data.length) return; SP.hour = +e.target.value; scoreAll(); });
+$("nowBtn").addEventListener("click", () => { if (!SP.times.length) { spotMsg("Lancez d'abord la recherche des sites.", "err"); return; }
+  let k = 0, best = 1e9; SP.times.forEach((t, n) => { const d = Math.abs(new Date(t) - Date.now()); if (d < best) { best = d; k = n; } });
+  SP.hour = k; $("spotHour").value = k; scoreAll(); });
 $("spotDT").addEventListener("change", () => { if (SP.data.length) scoreAll(); });
 document.addEventListener("click", e => { const b = e.target.closest("[data-spot]"); if (b) { e.stopPropagation(); loadSpot(b.dataset.spot); return; }
   const tr = e.target.closest("tr[data-row]"); if (tr && SP.map) { const t = SP.takeoffs.find(x => x.id === tr.dataset.row); if (t && t.marker) { SP.map.setView([t.lat, t.lon], Math.max(SP.map.getZoom(), 13)); t.marker.openPopup(); $("map").scrollIntoView({ block: "nearest" }); } } });
@@ -1698,11 +1756,9 @@ async function loadBeacons() {
 function beaconFor(t, i) {
   let best = null, bs = 1e9;
   for (const b of SP.beacons) { const d = distKm(t.lat, t.lon, b.lat, b.lon), dz = b.alt != null && t.alt != null ? Math.abs(b.alt - t.alt) : 9999;
-    if (d <= 10 && dz <= 600) { const sc = d + dz / 100; if (sc < bs) { bs = sc; best = { ...b, d, dz }; } } }
+    if (d <= RULES.cmp.dist && dz <= RULES.cmp.dz) { const sc = d + dz / 100; if (sc < bs) { bs = sc; best = { ...b, d, dz }; } } }
   if (!best) return null;
   best.ageMin = (Date.now() - best.date) / 60000;
-  const hr = SP.times[i] ? Math.abs(new Date(SP.times[i]) - Date.now()) / 3.6e6 : 99;
-  best.use = best.d <= 5 && best.dz <= 400 && best.ageMin <= 60 && best.ageMin > -10 && hr <= 1.5;
   return best;
 }
 const beaconCls = b => (Date.now() - b.date) / 60000 > 60 ? "mute" : b.max > 35 || b.avg > 25 ? "bad" : b.avg > 15 ? "warn" : "good";
@@ -1720,6 +1776,52 @@ function drawBeacons() {
 $("balBtn").addEventListener("click", async () => { if (!SP.center) { spotMsg("Lancez d'abord la recherche des sites.", "err"); return; }
   spotMsg("Lecture des balises…"); const t = await loadBeacons(); if (SP.data.length) scoreAll(); spotMsg(t || "Balises désactivées.", "ok"); });
 $("balOn").addEventListener("change", () => { if (!$("balOn").checked) { SP.beacons = []; if (SP.data.length) scoreAll(); } });
+
+// ---------- Paramètres (lecture seule) ----------
+function rulesHtml() {
+  const R = RULES.deco, A = R.axis, Q = RULES.therm, C = RULES.cmp;
+  const tbl = rows => `<div class="tablewrap"><table><tbody>${rows.map(([a, b]) => `<tr><td>${a}</td><td class="r">${b}</td></tr>`).join("")}</tbody></table></div>`;
+  return `<p>Ces règles sont fixes : elles s'affichent ici pour transparence et ne se modifient pas depuis l'application.</p>
+  <h3>Note décollage (sur 100)</h3>
+  <p>Calculée uniquement à partir de la prévision du modèle, pour l'heure choisie. On part de 100 et on retire des points ; les retraits s'additionnent, la note reste entre 0 et 100.</p>
+  ${tbl([
+    ["Site interdit ou interdit sauf autorisation (FFVL)", `−${R.interdit}`], ["Autorisation systématique requise (FFVL)", `−${R.autorisation}`], ["Alerte FFVL", "affichée, sans retrait"],
+    ...R.rain.map(([mm, p, , t]) => [`${t} : ${fr(mm)} mm/h ou plus`, `−${p}`]),
+    ...R.wind.map(([v, p, , t]) => [`${t} : vent moyen au-dessus de ${v} km/h (à l'altitude du déco)`, `−${p}`]), ["Vent au déco inconnu", `−${R.windUnknown}`],
+    [`Vent dans l'axe du déco (écart ≤ ${fr(A.ok)}°)`, "0"], [`Vent légèrement décalé (≤ ${A.offset}°)`, `−${A.offsetPen}`], [`Vent de travers (≤ ${A.cross}°)`, `−${A.crossPen}`],
+    [`Vent arrière (> ${A.cross}°)`, `−${A.back}`], [`Vent arrière de ${A.backStrong} km/h ou plus`, `−${A.backStrongPen}`], ["Orientation du déco inconnue", `−${A.unknown}`],
+    [`Vent sous ${R.calm} km/h : axe ignoré (brise thermique)`, "0"], [`Vent venant d'une orientation déconseillée par la FFVL (à ${fr(A.ok)}° près)`, `−${R.nok}`],
+    ...R.gust.map(([v, p]) => [`Rafales prévues à 10 m au-dessus de ${v} km/h`, `−${p}`]),
+    [`Déco dans le nuage : écart T–Td ≤ ${R.cloud.spread} °C à l'altitude du déco`, `−${R.cloud.pen}`], [`Nuages bas ≥ ${R.cloud.low} % et écart T–Td ≤ ${R.cloud.lowSpread} °C`, `−${R.cloud.lowPen}`],
+    [`Risque d'orage : CAPE ≥ ${R.storm.cape} J/kg et CIN > ${R.storm.cin} J/kg`, `−${R.storm.pen}`], [`Surdéveloppement : CAPE ≥ ${R.storm.capeOver} J/kg et CIN > ${R.storm.cinOver} J/kg`, `−${R.storm.penOver}`]])}
+  <h3>Note thermique en local (sur 100)</h3>
+  <p>Qualité des thermiques au-dessus du décollage. Le plafond est celui retenu par le comparatif sol / relief (départ à l'altitude du déco, avec la chauffe des pentes choisie).</p>
+  ${tbl([
+    [`Hauteur du plafond au-dessus du déco (maximum atteint à +${Q.hFull} m)`, `jusqu'à +${Q.hPts}`], [`Vigueur : écart moyen bulle / air ambiant (maximum à ${fr(Q.excFull)} °C)`, `jusqu'à +${Q.excPts}`],
+    [`Soleil : nuages bas sous ${Q.sun[0][0]} %`, `+${Q.sun[0][1]}`], [`Soleil : nuages bas sous ${Q.sun[1][0]} %`, `+${Q.sun[1][1]}`],
+    [`Cumulus avec une base à au moins ${Q.cuMin} m au-dessus du déco`, `+${Q.cuPts}`], ["Thermiques bleus (sans cumulus)", `+${Q.bluePts}`],
+    ...Q.wind.map(([v, p]) => [`Vent dans la couche des thermiques au-dessus de ${v} km/h`, `−${p}`]), ...Q.rain.map(([mm, p]) => [`Précipitations de ${fr(mm)} mm/h ou plus`, `−${p}`]),
+    ["Risque d'orage", `−${Q.storm}`], ["Surdéveloppement possible", `−${Q.over}`], ["Aucun thermique au-dessus du déco", `note limitée à ${Q.noThermMax}`]])}
+  <h3>Couleurs et classement</h3>
+  ${tbl([[`Vert`, `≥ ${RULES.cls.good}`], [`Orange`, `${RULES.cls.warn} à ${RULES.cls.good - 1}`], [`Rouge`, `< ${RULES.cls.warn}`],
+    ["Classement de la liste : moyenne des deux notes", "(déco + thermique) / 2"], [`Déco noté sous ${RULES.rankCut} : relégué en fin de liste`, "déco / 2"]])}
+  <h3>Comparaison prévu / mesuré (balises)</h3>
+  <p>Elle ne modifie pas les notes. Elle s'active quand l'heure choisie est à moins de ${C.window} h de maintenant, avec la balise la plus proche du déco.</p>
+  ${tbl([[`Balise retenue : à moins de ${C.dist} km et ${C.dz} m de dénivelé`, "la plus proche"], [`Balise éloignée (plus de ${C.near} km ou ${C.nearDz} m de dénivelé)`, "signalée"],
+    [`Mesure de plus de ${C.fresh} min`, "signalée"], [`Écart de force de ${C.dSpeed} km/h ou plus`, "plus fort / plus faible"], [`Écart de direction de plus de ${C.dDir}°`, "direction différente"],
+    [`Rafale mesurée au-dessus de ${C.gustWarn} km/h / ${C.gustBad} km/h`, "orange / rouge"], ["Vent mesuré par rapport à l'orientation du déco", "axe, travers, arrière"],
+    ["Verdict", "Conforme, Écart, Défavorable"]])}
+  <h3>Plafond sol ou relief</h3>
+  ${tbl([["Plafond sol : adiabatique sèche depuis la température au sol", "toujours calculé"], ["Plafond relief : depuis la pente, air libre + chauffe", "si coché, et pour chaque déco"],
+    ["Couvercle sous les crêtes : thermiques de vallée sous l'altitude de la pente − 100 m", "plafond relief retenu"], ["Couche brassée : thermiques de vallée au-dessus de la pente", "plafond sol retenu"],
+    ["Plafond à moins de 100 m au-dessus du départ", "compté comme « pas de thermique »"]])}
+  <h3>Données et mises à jour</h3>
+  ${tbl([["Prévision", "Météo-France AROME / ARPEGE via Open-Meteo"], ["Terrains FFVL (data.gouv.fr)", "gardés 24 h"], ["Liste des balises FFVL", "gardée 24 h"],
+    ["Relevés des balises FFVL et Pioupiou", "relus à chaque recherche"], ["Sites OpenStreetMap / ParaglidingEarth (option)", "gardés 7 jours"], ["Décollages notés", "les 15, 25 ou 40 plus proches"]])}`;
+}
+$("rulesBtn").addEventListener("click", () => { $("rulesB").innerHTML = rulesHtml(); const d = $("rules"); if (d.showModal) d.showModal(); else d.setAttribute("open", ""); });
+$("rulesX").addEventListener("click", () => { const d = $("rules"); if (d.close) d.close(); else d.removeAttribute("open"); });
+$("rules").addEventListener("click", e => { if (e.target === $("rules") && $("rules").close) $("rules").close(); });
 
 // ---------- Démarrage ----------
 const saved = store.get();
