@@ -217,6 +217,17 @@ dialog#rules::backdrop{background:rgba(10,15,30,.45)}
 .gloss dd{margin:0;color:var(--muted);font-size:13.5px}
 .gloss .sw{display:inline-block;width:22px;height:0;border-top:2px solid;vertical-align:middle}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+/* ---- Situation générale ---- */
+.situ-t{font-size:22px;text-transform:none;letter-spacing:.01em;color:var(--ink);margin-top:2px}
+.situ-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;margin-top:10px}
+@media (max-width:900px){.situ-grid{grid-template-columns:minmax(0,1fr)}}
+.situ-txt{margin:0 0 10px;font-size:15px;max-width:80ch}
+.situ-chart canvas{display:block;width:100%;height:240px}
+.situ-leg{padding-top:8px}
+.situ-side{display:grid;gap:12px;align-content:start}
+.situ-links{display:grid;gap:4px;font-size:14px}
+.situ-links a{color:var(--accent)}
+.pill.info{color:var(--accent)}
 /* ---- Passe de design : hiérarchie, densité, boutons ---- */
 :root{--radius:10px;--radius-s:7px;--shadow:0 1px 2px rgba(23,42,74,.06),0 4px 14px rgba(23,42,74,.06);--tint:rgba(52,99,184,.10);--tint-2:rgba(52,99,184,.18)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.25);--tint:rgba(142,179,236,.12);--tint-2:rgba(142,179,236,.22)}}
@@ -374,6 +385,31 @@ footer{padding:4px 2px 0}
       </aside>
     </div>
     <details class="more help"><summary>Comment lire la carte et les notes</summary><div class="note">Sites et balises : données officielles de la FFVL (open data data.gouv.fr, terrains mis à jour chaque jour, relevés toutes les 5 min), complétées si vous le cochez par OpenStreetMap et ParaglidingEarth. Vérifiez toujours la fiche du site et les consignes du club local. Deux notes sur 100, indicatives, d'après la prévision du modèle. <b>Déco</b> : vent au décollage et dans l'axe, rafales, pluie, nuage au déco, orage. <b>Thermique</b> : hauteur du plafond au-dessus du déco, vigueur des thermiques, soleil, cumulus, vent dans la couche, orage. Sur la carte, la pastille montre la note déco à gauche et la note thermique à droite ; les flèches sont les balises (vers où souffle le vent, vitesse moyenne/rafale en km/h). Les notes reposent uniquement sur la prévision. Quand l'heure choisie approche (moins de 2 h, bouton « Maintenant »), la colonne « Balise » et la fiche comparent la prévision au vent mesuré. Cliquez une pastille pour afficher sa fiche dans le volet de droite (la carte ne bouge pas), ou n'importe où sur la carte pour la prévision de ce point. Toutes les règles sont détaillées dans « Paramètres ». La liste est triée par la moyenne des deux, un déco noté sous 40 passant en fin de liste.</div></details>
+  </section>
+
+  <section class="panel" id="situ" aria-labelledby="situ-h">
+    <div class="sec-h"><div><div class="kick">Situation générale</div><h2 id="situ-h" class="situ-t">Chargez un lieu pour voir la situation</h2></div><span class="sub" id="situWhen"></span></div>
+    <div class="situ-grid">
+      <div class="situ-main">
+        <p id="situTxt" class="situ-txt"></p>
+        <div class="situ-chart"><canvas id="situCv" role="img" aria-label="Évolution sur 48 h : pression, température à 850 hPa, pluie, nuages et vent en altitude"></canvas></div>
+        <div class="legend situ-leg">
+          <span><i style="border-color:var(--accent);border-top-width:3px"></i>Pression mer (hPa)</span>
+          <span><i style="border-color:var(--temp);border-top-width:3px"></i>Température à 850 hPa (°C)</span>
+          <span><i style="border-color:var(--dew);border-top-width:6px"></i>Pluie (mm/h)</span>
+          <span><i style="border-color:var(--muted);border-top-width:6px;opacity:.5"></i>Nuages hauts / moyens / bas</span>
+          <span>↗ Vent à 700 hPa (≈ 3 000 m)</span>
+        </div>
+      </div>
+      <aside class="situ-side">
+        <dl class="kv" id="situKv"></dl>
+        <div class="situ-links"><div class="lbl">Cartes de fronts officielles</div>
+          <a href="https://www.metoffice.gov.uk/weather/maps-and-charts/surface-pressure" target="_blank" rel="noopener">Met Office : analyse et prévisions des fronts ↗</a>
+          <a href="https://www.dwd.de/hobbymet" target="_blank" rel="noopener">DWD : cartes d'analyse Europe ↗</a>
+        </div>
+        <p class="note">Lecture automatique de la prévision AROME au lieu choisi : elle repère les passages de fronts par leurs signatures locales (pression, température à 850 hPa, vent, nuages, pluie), sans remplacer une carte analysée par un prévisionniste.</p>
+      </aside>
+    </div>
   </section>
 
   <div class="main">
@@ -958,7 +994,7 @@ function setSounding(snd, keepParcel) {
 // ---------- Import Open-Meteo / texte ----------
 function apiUrl() {
   const lat = (+$("lat").value).toFixed(3), lon = (+$("lon").value).toFixed(3), model = $("model").value;
-  const v = ["temperature_2m", "dew_point_2m", "surface_pressure", "wind_speed_10m", "wind_direction_10m"];
+  const v = ["temperature_2m", "dew_point_2m", "surface_pressure", "wind_speed_10m", "wind_direction_10m", "pressure_msl", "precipitation", "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high"];
   for (const L of LEVELS) for (const n of ["temperature", "relative_humidity", "geopotential_height", "wind_speed", "wind_direction"]) v.push(`${n}_${L}hPa`);
   return `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&models=${model}&hourly=${v.join(",")}&wind_speed_unit=kn&timezone=auto&forecast_days=2`;
 }
@@ -1004,7 +1040,7 @@ function sndFromHour(i, D = S.dataset) {
 }
 function showHour(i, keep) {
   if (!S.dataset || (S.tut && S.tut.mode === "tut")) return; i = Math.max(0, Math.min(S.dataset.times.length - 1, i));
-  try { const snd = sndFromHour(i); S.hourIdx = i; $("hourSel").value = i; setSounding(snd, keep); }
+  try { const snd = sndFromHour(i); S.hourIdx = i; $("hourSel").value = i; setSounding(snd, keep); renderSituation(); }
   catch (e) { msg(e.message, "err"); }
 }
 function parseText(txt) {
@@ -1505,7 +1541,7 @@ function mergeSites(list) {
   }
   return kept;
 }
-const FVARS = () => { const v = ["temperature_2m", "dew_point_2m", "surface_pressure", "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m", "precipitation", "cloud_cover_low", "cloud_cover", "snow_depth"];
+const FVARS = () => { const v = ["temperature_2m", "dew_point_2m", "surface_pressure", "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m", "precipitation", "cloud_cover_low", "cloud_cover", "snow_depth", "pressure_msl", "cloud_cover_mid", "cloud_cover_high"];
   for (const L of LEVELS) for (const n of ["temperature", "relative_humidity", "geopotential_height", "wind_speed", "wind_direction"]) v.push(`${n}_${L}hPa`); return v.join(","); };
 function spotUrl(list, elev) {
   return `https://api.open-meteo.com/v1/forecast?latitude=${list.map(s => s.lat.toFixed(4)).join(",")}&longitude=${list.map(s => s.lon.toFixed(4)).join(",")}`
@@ -2231,6 +2267,111 @@ function rulesHtml() {
 $("rulesBtn").addEventListener("click", () => { $("rulesB").innerHTML = rulesHtml(); const d = $("rules"); if (d.showModal) d.showModal(); else d.setAttribute("open", ""); });
 $("rulesX").addEventListener("click", () => { const d = $("rules"); if (d.close) d.close(); else d.removeAttribute("open"); });
 $("rules").addEventListener("click", e => { if (e.target === $("rules") && $("rules").close) $("rules").close(); });
+
+// ---------- Situation générale (lecture synoptique locale de la prévision) ----------
+function situSeries(D) {
+  const g = n => D.gv(n) || [], T = D.times;
+  return { T, p: g("pressure_msl"), t850: g("temperature_850hPa"), rain: g("precipitation"), w700: g("wind_speed_700hPa"), d700: g("wind_direction_700hPa"),
+    lo: g("cloud_cover_low"), mid: g("cloud_cover_mid"), hi: g("cloud_cover_high"), tot: g("cloud_cover") };
+}
+function situAnalyse(D, i) {
+  const X = situSeries(D), n = X.T.length, at = (a, k) => (k >= 0 && k < n && a[k] != null ? a[k] : null);
+  const hh = k => X.T[k] ? `${new Date(X.T[k]).toLocaleDateString("fr-FR", { weekday: "short" })} ${X.T[k].slice(11, 13)} h` : "";
+  const p = at(X.p, i), pPast = at(X.p, i - 12) ?? at(X.p, i - 6), pFut = at(X.p, i + 12) ?? at(X.p, n - 1);
+  const dpPast = p != null && pPast != null ? p - pPast : null, dpFut = p != null && pFut != null ? pFut - p : null;
+  const w = at(X.w700, i), wd = at(X.d700, i), wkmh = w != null ? w * 1.852 : null;
+  const t = at(X.t850, i), t24 = at(X.t850, Math.min(n - 1, i + 24)), dT24 = t != null && t24 != null ? t24 - t : null;
+  let rainSum = 0; for (let k = i; k < Math.min(n, i + 24); k++) rainSum += X.rain[k] || 0;
+  const mh = (at(X.mid, i) ?? 0), hiC = (at(X.hi, i) ?? 0), lo = (at(X.lo, i) ?? 0);
+  // Fronts : chute (froid) ou hausse (chaud) marquée de T850 sur 12 h, dans la fenêtre [i−6, i+30]
+  let cold = null, warm = null;
+  for (let k = Math.max(0, i - 6); k + 12 < n && k <= i + 30; k++) {
+    const a = at(X.t850, k), b = at(X.t850, k + 12); if (a == null || b == null) continue;
+    let r = 0; for (let m = k; m <= k + 12; m++) r += X.rain[m] || 0;
+    const d1 = at(X.d700, k), d2 = at(X.d700, k + 12), veer = d1 != null && d2 != null ? ((d2 - d1 + 540) % 360) - 180 : 0;
+    if (b - a <= -4 || (b - a <= -3 && (r >= 1 || veer > 30))) { if (!cold || b - a < cold.d - 0.3) cold = { d: b - a, k: k + 6, r, veer, ks: [k + 6] }; else if (Math.abs(b - a - cold.d) <= 0.3) cold.ks.push(k + 6); }
+    if (b - a >= 3) { const pk = at(X.p, k), pk2 = at(X.p, k + 12); if ((pk != null && pk2 != null && pk2 - pk <= -2) || (at(X.mid, k + 6) ?? 0) + (at(X.hi, k + 6) ?? 0) >= 120 || r >= 1) { if (!warm || b - a > warm.d + 0.3) warm = { d: b - a, k: k + 6, r, ks: [k + 6] }; else if (Math.abs(b - a - warm.d) <= 0.3) warm.ks.push(k + 6); } }
+  }
+  [cold, warm].forEach(f => { if (f && f.ks) f.k = Math.round(f.ks.reduce((a, b) => a + b, 0) / f.ks.length); });
+  // Type de temps
+  let type, cls = "info";
+  if (cold && Math.abs(cold.k - i) <= 30) { type = `Passage de front froid ${cold.k < i ? "récent" : "attendu"} (${hh(cold.k)})`; cls = "warn"; }
+  else if (warm && Math.abs(warm.k - i) <= 30) { type = `Arrivée d'air chaud, front chaud probable (${hh(warm.k)})`; cls = "warn"; }
+  else if (p != null && p < 1008) { type = "Régime dépressionnaire"; cls = "bad"; }
+  else if (p != null && p >= 1020 && (dpFut == null || dpFut > -3)) { type = "Régime anticyclonique"; cls = "good"; }
+  else if (p != null && dpFut != null && dpFut <= -4) { type = "Baisse de pression : dégradation en approche"; cls = "warn"; }
+  else if (p != null && dpFut != null && dpFut >= 4) { type = "Hausse de pression : amélioration"; cls = "good"; }
+  else if (wkmh != null && wkmh < 20 && p != null && p >= 1010 && p < 1020) { type = "Marais barométrique (gradient faible)"; cls = "info"; }
+  else type = wd != null ? `Flux ${deDir(wd)}` : "Situation peu marquée";
+  // Résumé en clair
+  const T = [];
+  if (p != null) T.push(`Pression ${Math.round(p)} hPa${dpFut != null ? (Math.abs(dpFut) < 1.5 ? ", stable sur les 12 h suivantes" : `, ${dpFut > 0 ? "en hausse" : "en baisse"} de ${fr(Math.abs(dpFut))} hPa sur les 12 h suivantes`) : ""}.`);
+  if (wkmh != null) T.push(`En altitude (≈ 3 000 m), vent ${deDir(wd)} à ${Math.round(wkmh)} km/h${wkmh >= 50 ? " : flux fort, vol en montagne déconseillé (turbulences, foehn possible sous le vent des reliefs)" : wkmh >= 30 ? " : flux soutenu, attention aux reliefs sous le vent" : ""}.`);
+  if (cold) T.push(`Chute de ${fr(-cold.d)} °C à 850 hPa vers ${hh(cold.k)}${cold.veer > 30 ? ", avec rotation du vent" : ""}${cold.r >= 1 ? " et précipitations" : ""} : signature d'un front froid (averses, rafales, puis air plus instable).`);
+  if (warm) T.push(`Hausse de ${fr(warm.d)} °C à 850 hPa vers ${hh(warm.k)} : arrivée d'air chaud, souvent précédée de nuages élevés puis moyens qui coupent les thermiques.`);
+  if (dT24 != null && !cold && !warm && Math.abs(dT24) >= 2) T.push(`Masse d'air en ${dT24 > 0 ? "réchauffement" : "refroidissement"} (${dT24 > 0 ? "+" : "−"}${fr(Math.abs(dT24))} °C à 850 hPa en 24 h).`);
+  T.push(rainSum >= 0.5 ? `Pluie prévue sur les 24 h : ${fr(rainSum)} mm.` : "Pas de pluie significative sur les 24 h.");
+  if (hiC + mh >= 120 && lo < 50) T.push("Nuages moyens et élevés abondants : soleil voilé, thermiques affaiblis.");
+  else if (lo >= 80) T.push("Ciel bas et couvert.");
+  return { X, cold, warm, type, cls, txt: T.join(" "), kv: [
+    ["Pression mer", p != null ? `${Math.round(p)} hPa` : "—"], ["Tendance passée 12 h", dpPast != null ? `${dpPast >= 0 ? "+" : "−"}${fr(Math.abs(dpPast))} hPa` : "—"],
+    ["Tendance à venir 12 h", dpFut != null ? `${dpFut >= 0 ? "+" : "−"}${fr(Math.abs(dpFut))} hPa` : "—"],
+    ["Vent à 700 hPa", wkmh != null ? `${abbr(wd)} ${Math.round(wkmh)} km/h` : "—"], ["T à 850 hPa", t != null ? `${fr(t)} °C${dT24 != null ? ` (${dT24 >= 0 ? "+" : "−"}${fr(Math.abs(dT24))} en 24 h)` : ""}` : "—"],
+    ["Pluie 24 h", `${fr(rainSum)} mm`], ["Nuages bas / moy. / hauts", `${Math.round(lo)} / ${Math.round(mh)} / ${Math.round(hiC)} %`]] };
+}
+function renderSituation() {
+  const D = S.dataset; if (!D || !D.gv) return;
+  const i = S.hourIdx || 0, A = situAnalyse(D, i);
+  $("situ-h").innerHTML = `${esc(S.place || "Lieu choisi")} : <span class="pill ${A.cls}" style="font-size:14px;vertical-align:middle">${esc(A.type)}</span>`;
+  $("situWhen").textContent = D.times[i] ? `Autour du ${new Date(D.times[i]).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} ${D.times[i].slice(11, 16)}` : "";
+  $("situTxt").textContent = A.txt; kv($("situKv"), A.kv);
+  drawSituation(A.X, i, D, A);
+}
+function drawSituation(X, i0, D, A) {
+  const cv = $("situCv"), w = cv.clientWidth || 600, h = cv.clientHeight || 240, dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  readColors(); const n = X.T.length; if (!n) return;
+  const L = 44, R = w - 44, top = 54, bot = h - 24, x = k => L + (R - L) * k / Math.max(1, n - 1);
+  c.clearRect(0, 0, w, h); c.font = `11px ${getComputedStyle(document.body).getPropertyValue("--f-mono")}`;
+  // nuits
+  c.fillStyle = C.rule; c.globalAlpha = .35;
+  for (let k = 0; k < n; k++) { const t = X.T[k]; const [y, mo, d] = t.slice(0, 10).split("-").map(Number); const ms = Date.UTC(y, mo - 1, d, +t.slice(11, 13)) - (D.d.utc_offset_seconds || 0) * 1000;
+    if (sunPos(D.lat, D.lon, ms).el < 0) c.fillRect(x(k) - (R - L) / (2 * (n - 1)), top - 44, (R - L) / (n - 1) + .5, bot - top + 44); }
+  c.globalAlpha = 1;
+  // bandes de nuages (hauts, moyens, bas)
+  [["hi", top - 44], ["mid", top - 34], ["lo", top - 24]].forEach(([key, y]) => { for (let k = 0; k < n; k++) { const v = X[key][k]; if (v == null) continue;
+    c.fillStyle = C.muted; c.globalAlpha = .08 + .62 * v / 100; c.fillRect(x(k) - (R - L) / (2 * (n - 1)), y, (R - L) / (n - 1) + .5, 8); } });
+  c.globalAlpha = 1; c.fillStyle = C.muted; c.textAlign = "right"; c.textBaseline = "middle";
+  c.fillText("H", L - 6, top - 40); c.fillText("M", L - 6, top - 30); c.fillText("B", L - 6, top - 20);
+  // échelles
+  const pv = X.p.filter(v => v != null), tv = X.t850.filter(v => v != null), rv = X.rain.map(v => v || 0);
+  if (!pv.length || !tv.length) { c.fillStyle = C.muted; c.textAlign = "center"; c.fillText("Données de pression indisponibles pour ce lieu", w / 2, h / 2); return; }
+  const pMin = Math.floor(Math.min(...pv) - 1), pMax = Math.ceil(Math.max(...pv) + 1), tMin = Math.floor(Math.min(...tv) - 1), tMax = Math.ceil(Math.max(...tv) + 1), rMax = Math.max(2, ...rv);
+  const yp = v => bot - (v - pMin) / (pMax - pMin || 1) * (bot - top), yt = v => bot - (v - tMin) / (tMax - tMin || 1) * (bot - top), yr = v => bot - v / rMax * (bot - top) * .5;
+  c.strokeStyle = C.rule; c.lineWidth = 1; for (let g = 0; g <= 4; g++) { const y = top + (bot - top) * g / 4; c.beginPath(); c.moveTo(L, y); c.lineTo(R, y); c.stroke(); }
+  // pluie
+  c.fillStyle = C.dew; c.globalAlpha = .55; for (let k = 0; k < n; k++) { const v = X.rain[k] || 0; if (v <= 0) continue; const bw = Math.max(2, (R - L) / n - 1); c.fillRect(x(k) - bw / 2, yr(v), bw, bot - yr(v)); } c.globalAlpha = 1;
+  // pression et T850
+  const line = (arr, y, col) => { c.strokeStyle = col; c.lineWidth = 2.4; c.beginPath(); let st = false; arr.forEach((v, k) => { if (v == null) return; st ? c.lineTo(x(k), y(v)) : c.moveTo(x(k), y(v)); st = true; }); c.stroke(); };
+  line(X.p, yp, C.accent); line(X.t850, yt, C.temp);
+  c.fillStyle = C.accent; c.textAlign = "right"; c.fillText(String(pMax), L - 6, top); c.fillText(String(pMin), L - 6, bot);
+  c.fillStyle = C.temp; c.textAlign = "left"; c.fillText(`${tMax}°`, R + 6, top); c.fillText(`${tMin}°`, R + 6, bot);
+  // vent à 700 hPa (flèches vers où il souffle, toutes les 3 h)
+  for (let k = 0; k < n; k += 3) { const s = X.w700[k], d = X.d700[k]; if (s == null || d == null) continue; const kmh = s * 1.852, a = (d + 180) * Math.PI / 180, cx = x(k), cy = top - 8, len = 5 + Math.min(kmh, 80) / 80 * 6;
+    c.strokeStyle = kmh >= 50 ? C.bad : kmh >= 30 ? C.warn : C.ink; c.lineWidth = 1.6; c.beginPath(); c.moveTo(cx - Math.sin(a) * len, cy + Math.cos(a) * len); c.lineTo(cx + Math.sin(a) * len, cy - Math.cos(a) * len); c.stroke();
+    c.beginPath(); c.arc(cx + Math.sin(a) * len, cy - Math.cos(a) * len, 1.8, 0, 7); c.fillStyle = c.strokeStyle; c.fill(); }
+  // heures
+  c.fillStyle = C.muted; c.textAlign = "center"; c.textBaseline = "top";
+  for (let k = 0; k < n; k++) { const t = X.T[k]; if (+t.slice(11, 13) % (w < 520 ? 12 : 6)) continue; const lab = t.slice(11, 13) === "00" ? new Date(t).toLocaleDateString("fr-FR", { weekday: "short" }) : `${t.slice(11, 13)} h`; c.fillText(lab, x(k), bot + 6); }
+  // fronts repérés
+  [[A && A.cold, "Front froid", C.dew], [A && A.warm, "Front chaud", C.temp]].forEach(([f, lab, col]) => { if (!f) return; const fx = x(f.k);
+    c.strokeStyle = col; c.lineWidth = 2; c.setLineDash([6, 4]); c.beginPath(); c.moveTo(fx, top); c.lineTo(fx, bot); c.stroke(); c.setLineDash([]);
+    c.font = `600 12px ${getComputedStyle(document.body).getPropertyValue("--f-display")}`; c.fillStyle = col; c.textAlign = fx > R - 80 ? "right" : "left"; c.textBaseline = "top"; c.fillText(lab, fx + (fx > R - 80 ? -5 : 5), top + 4); });
+  // heure choisie
+  c.strokeStyle = C.hi; c.lineWidth = 2; c.beginPath(); c.moveTo(x(i0), top - 46); c.lineTo(x(i0), bot); c.stroke();
+}
+new ResizeObserver(() => { if (S.dataset) renderSituation(); }).observe($("situCv"));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (S.dataset) renderSituation(); });
 
 // ---------- Démarrage ----------
 const saved = store.get();
