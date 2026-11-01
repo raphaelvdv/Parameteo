@@ -143,9 +143,22 @@ dt[title],.stat .k[title],th[title],.tip{cursor:help;text-decoration:underline d
 .stat.wide{grid-column:1/-1;display:grid;gap:6px;justify-items:start}
 .stat .n{font-size:12px;color:var(--muted)}
 .diag{margin:0;font-size:13.5px}
-.spots-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin-top:12px}
+.spots-grid{display:grid;grid-template-columns:minmax(0,1fr) min(560px,44%);gap:14px;margin-top:12px;align-items:stretch}
+.spots-grid.closed{grid-template-columns:minmax(0,1fr)}
+.spots-grid.closed .spots-side{display:none}
+.map-wrap{position:relative;min-width:0}
+.spots-side{display:flex;flex-direction:column;min-width:0;height:clamp(420px,72vh,820px);border:1px solid var(--rule);border-radius:4px;background:var(--surface)}
+.side-h{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--rule)}
+.side-h h3{font-size:14px;text-transform:uppercase;letter-spacing:.08em;margin:0}
+.side-h .n{font-family:var(--f-mono);font-size:12px;color:var(--muted);font-weight:400;letter-spacing:0;margin-left:6px}
+#sideOpen{position:absolute;top:50%;right:0;transform:translateY(-50%);z-index:500;border-radius:4px 0 0 4px;writing-mode:vertical-rl;padding:14px 7px;box-shadow:-2px 0 6px rgba(0,0,0,.2)}
+.spots-grid:not(.closed) #sideOpen{display:none}
+@media (max-width:900px){.spots-grid{grid-template-columns:minmax(0,1fr)}.spots-side{height:auto;max-height:560px}}
 #map{height:clamp(420px,72vh,820px);border:1px solid var(--rule);border-radius:4px;background:var(--paper);display:grid;place-items:center;color:var(--muted);font-size:13px;text-align:center;padding:0}
-.spots-list{max-height:560px;overflow:auto;border:1px solid var(--rule);border-radius:4px}
+.spots-list{flex:1;min-height:0;overflow:auto}
+.spots-list #spotTbl th,.spots-list #spotTbl td{padding:5px 6px}
+.spots-list #spotTbl{font-size:12.5px}
+.spots-list #spotTbl .nm{min-width:0}
 #spotTbl th,#spotTbl td{text-align:left;vertical-align:top}
 #spotTbl td.r,#spotTbl th.r{text-align:right}
 #spotTbl tbody tr{cursor:pointer}
@@ -277,10 +290,14 @@ dialog#rules::backdrop{background:rgba(10,15,30,.45)}
       <button id="balBtn" type="button" class="ghost">Actualiser les balises</button>
     </div>
     <p id="spotsMsg" class="msg" hidden></p>
-    <div class="spots-grid">
-      <div id="map">La carte s'affiche après la recherche.<br>Centre : les coordonnées de la source du sondage.</div>
-      <div class="spots-list"><table id="spotTbl"><thead><tr><th class="r" title="Note décollage /100 : vent, axe, rafales, pluie, nuage, orage">Déco</th><th class="r" title="Note thermique /100 : plafond, vigueur, soleil, cumulus, vent en altitude, orage">Therm.</th><th>Décollage</th><th class="r">Alt.</th><th class="r">Dist.</th><th title="Vent prévu à l'altitude du décollage (km/h)">Vent prévu</th><th title="Balise la plus proche : vent moyen/rafale mesuré (km/h). Coloré quand la comparaison est active">Balise</th><th class="r" title="Plafond thermique retenu">Plafond</th></tr></thead>
-        <tbody><tr><td colspan="8" class="sub">Lancez la recherche pour lister les décollages, du mieux noté au moins bien noté.</td></tr></tbody></table></div>
+    <div class="spots-grid" id="spotsGrid">
+      <div class="map-wrap"><div id="map">La carte s'affiche après la recherche.<br>Centre : les coordonnées de la source du sondage.</div>
+        <button type="button" id="sideOpen" aria-controls="spotsSide" aria-expanded="false">◀ Classement</button></div>
+      <aside class="spots-side" id="spotsSide" aria-labelledby="side-t">
+      <div class="side-h"><h3 id="side-t">Classement<span class="n" id="sideN"></span></h3><button type="button" class="ghost sm" id="sideClose" aria-controls="spotsSide" aria-expanded="true">Masquer ▶</button></div>
+      <div class="spots-list"><table id="spotTbl"><thead><tr><th class="r" title="Note décollage /100 : vent, axe, rafales, pluie, nuage, orage">Déco</th><th class="r" title="Note thermique /100 : plafond, vigueur, soleil, cumulus, vent en altitude, orage">Therm.</th><th>Décollage</th><th title="Vent prévu à l'altitude du décollage (km/h)">Vent prévu</th><th title="Balise la plus proche : vent moyen/rafale mesuré (km/h). Coloré quand la comparaison est active">Balise</th><th class="r" title="Plafond thermique retenu">Plafond</th></tr></thead>
+        <tbody><tr><td colspan="6" class="sub">Lancez la recherche pour lister les décollages, du mieux noté au moins bien noté.</td></tr></tbody></table></div>
+      </aside>
     </div>
     <p class="note" style="margin-top:10px">Sites et balises : données officielles de la FFVL (open data data.gouv.fr, terrains mis à jour chaque jour, relevés toutes les 5 min), complétées si vous le cochez par OpenStreetMap et ParaglidingEarth. Vérifiez toujours la fiche du site et les consignes du club local. Deux notes sur 100, indicatives, d'après la prévision du modèle. <b>Déco</b> : vent au décollage et dans l'axe, rafales, pluie, nuage au déco, orage. <b>Thermique</b> : hauteur du plafond au-dessus du déco, vigueur des thermiques, soleil, cumulus, vent dans la couche, orage. Sur la carte, la pastille montre la note déco à gauche et la note thermique à droite ; les flèches sont les balises (vers où souffle le vent, vitesse moyenne/rafale en km/h). Les notes reposent uniquement sur la prévision. Quand l'heure choisie approche (moins de 2 h, bouton « Maintenant »), la colonne « Balise » et la fiche comparent la prévision au vent mesuré. Toutes les règles sont détaillées dans « Paramètres ». La liste est triée par la moyenne des deux, un déco noté sous 40 passant en fin de liste.</p>
   </section>
@@ -1562,11 +1579,11 @@ function renderSpots() {
   tb.innerHTML = list.length ? list.map(t => { const r = t.res, w = r.wind, sc = t.sc;
     const worst = [...sc.wd, ...sc.wt].find(x => x.cls === "bad") || [...sc.wd, ...sc.wt].find(x => x.cls === "warn");
     return `<tr data-row="${esc(t.id)}"><td class="r"><span class="score ${sc.dc}">${sc.D}</span></td><td class="r"><span class="score ${sc.tc}">${sc.T}</span></td>
-      <td><div class="nm">${esc(t.name)}</div><div class="sub">${t.ffvl && t.ffvl.st !== "actif" ? `<b style="color:var(--${(ST_FFVL[t.ffvl.st] || ["warn"])[0]})">${esc((ST_FFVL[t.ffvl.st] || [0, t.ffvl.st])[1])}</b> · ` : ""}${t.ori.length ? [...new Set(t.ori.map(abbr))].join(", ") : "orientation ?"} · ${esc(worst ? worst.t : "conditions favorables")}</div><button type="button" class="ghost sm" style="margin-top:4px" data-spot="${esc(t.id)}">Voir le sondage</button></td>
-      <td class="r">${t.alt != null ? Math.round(t.alt) : "—"}</td><td class="r">${fr(t.dist)}</td>
+      <td><div class="nm">${esc(t.name)}</div><div class="sub">${t.alt != null ? Math.round(t.alt) + " m" : "alt. ?"} · ${fr(t.dist)} km · ${t.ffvl && t.ffvl.st !== "actif" ? `<b style="color:var(--${(ST_FFVL[t.ffvl.st] || ["warn"])[0]})">${esc((ST_FFVL[t.ffvl.st] || [0, t.ffvl.st])[1])}</b> · ` : ""}${t.ori.length ? [...new Set(t.ori.map(abbr))].join(", ") : "orientation ?"} · ${esc(worst ? worst.t : "conditions favorables")}</div><button type="button" class="ghost sm" style="margin-top:4px" data-spot="${esc(t.id)}">Voir le sondage</button></td>
       <td>${w ? `${abbr(w.dir)} ${Math.round(w.spd * 1.852)}` : "—"}</td>
       <td>${t.obs ? (t.cmp && t.cmp.active ? `<span class="pill ${t.cmp.v[0]}" title="${esc(t.cmp.v[1] + " · " + t.obs.name)}">${abbr(t.obs.dir)} ${Math.round(t.obs.avg)}/${Math.round(t.obs.max)}</span>` : `<span class="sub" title="Mesure actuelle, comparaison inactive à cette heure">${abbr(t.obs.dir)} ${Math.round(t.obs.avg)}/${Math.round(t.obs.max)}</span>`) : "—"}</td><td class="r">${r.ceilZ !== null ? Math.round(r.ceilZ) : "—"}</td></tr>`; }).join("")
-    : `<tr><td colspan="8" class="sub">Aucun décollage noté.</td></tr>`;
+    : `<tr><td colspan="6" class="sub">Aucun décollage noté.</td></tr>`;
+  $("sideN").textContent = list.length ? `${list.length} décos` : "";
   if (!initMap()) return;
   SP.layer.clearLayers();
   const c = SP.center; L.circle([c.lat, c.lon], { radius: c.r * 1000, color: getComputedStyle(document.documentElement).getPropertyValue("--accent"), weight: 1.5, fillOpacity: 0.04 }).addTo(SP.layer);
@@ -1701,6 +1718,14 @@ function loadSpot(id) {
   document.querySelector(".main").scrollIntoView({ block: "start" });
 }
 $("spotsBtn").addEventListener("click", searchSpots);
+function setSide(open) {
+  $("spotsGrid").classList.toggle("closed", !open); $("sideOpen").setAttribute("aria-expanded", String(open)); $("sideClose").setAttribute("aria-expanded", String(open));
+  try { localStorage.setItem("emagramme-side", open ? "1" : "0"); } catch {}
+  if (SP.map) setTimeout(() => SP.map.invalidateSize(), 50);
+}
+$("sideOpen").addEventListener("click", () => setSide(true));
+$("sideClose").addEventListener("click", () => setSide(false));
+try { if (localStorage.getItem("emagramme-side") === "0") setSide(false); } catch {}
 $("spotsRefresh").addEventListener("click", () => { SP.noCache = true; searchSpots(); });
 $("spotHour").addEventListener("change", e => { if (!SP.data.length) return; SP.hour = +e.target.value; scoreAll(); });
 $("nowBtn").addEventListener("click", () => { if (!SP.times.length) { spotMsg("Lancez d'abord la recherche des sites.", "err"); return; }
