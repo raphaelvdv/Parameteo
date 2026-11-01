@@ -42,6 +42,7 @@
   --good:#5cc487; --warn:#ffa95e; --bad:#ff7468; color-scheme:dark}
 
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{color-scheme:light}
 @media (prefers-color-scheme: dark){html{color-scheme:dark}}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;
@@ -1587,7 +1588,7 @@ function renderSpots() {
   if (!initMap()) return;
   SP.layer.clearLayers();
   const c = SP.center; L.circle([c.lat, c.lon], { radius: c.r * 1000, color: getComputedStyle(document.documentElement).getPropertyValue("--accent"), weight: 1.5, fillOpacity: 0.04 }).addTo(SP.layer);
-  L.marker([c.lat, c.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin ctr"></div>', iconSize: [14, 14] }), title: "Centre de recherche" }).addTo(SP.layer);
+  L.marker([c.lat, c.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin ctr"></div>', iconSize: [14, 14] }), title: SP.here && S.place === "Ma position" ? "Votre position" : "Centre de recherche" }).addTo(SP.layer);
   SP.landings.forEach(l => L.marker([l.lat, l.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin land">A</div>', iconSize: [20, 20] }), title: l.name })
     .bindPopup(`<div class="pop"><h4>${esc(l.name)}</h4><div class="meta">Atterrissage · ${l.alt != null ? Math.round(l.alt) + " m" : "alt. ?"}</div>${ffvlHtml(l)}<a href="${esc(l.url)}" target="_blank" rel="noopener">${l.src === "FFVL" ? "Rechercher le site sur ffvl.fr" : "Fiche " + esc(l.src)} ↗</a></div>`).addTo(SP.layer));
   drawBeacons();
@@ -1595,7 +1596,8 @@ function renderSpots() {
     const html = sc ? `<div class="pin2" title="Déco ${sc.D} · Thermique ${sc.T}"><span class="${sc.dc}">${sc.D}</span><span class="${sc.tc}">${sc.T}</span></div>` : '<div class="pin2"><span class="mute">?</span></div>';
     t.marker = L.marker([t.lat, t.lon], { icon: L.divIcon({ className: "clear", html, iconSize: [60, 24], iconAnchor: [30, 12] }), title: t.name, zIndexOffset: sc ? Math.round(sc.rank * 10) : 0 })
       .bindPopup(sc ? popupHtml(t) : `<div class="pop"><h4>${esc(t.name)}</h4><div class="meta">Non noté (hors des 40 plus proches)</div></div>`, { maxWidth: 330 }).addTo(SP.layer); });
-  if (!SP.fitted) { SP.map.invalidateSize(); SP.map.fitBounds(L.latLng(c.lat, c.lon).toBounds(c.r * 2000), { padding: [10, 10] }); SP.fitted = true; }
+  if (!SP.fitted) { const bb = L.latLng(c.lat, c.lon).toBounds(c.r * 2000), fit = () => { SP.map.invalidateSize(); SP.map.fitBounds(bb, { padding: [10, 10] }); };
+    fit(); setTimeout(fit, 300); SP.fitted = true; }
 }
 function scoreAll() {
   const i = SP.hour;
@@ -1603,7 +1605,7 @@ function scoreAll() {
     try { t.res = analyzeSpot(t, d, i); t.obs = beaconFor(t, i); t.sc = scoreSpot(t, t.res); t.cmp = compareBeacon(t, t.res, t.obs, i); } catch (e) { console.warn("Site non noté", t.name, e); } });
   renderSpots();
   const best = SP.takeoffs.filter(t => t.sc).sort((a, b) => b.sc.rank - a.sc.rank)[0];
-  spotMsg(`${SP.takeoffs.filter(t => t.sc).length} décollages notés, ${SP.landings.length} atterrissage${SP.landings.length > 1 ? "s" : ""}. ${best ? `Meilleur : ${best.name} (déco ${best.sc.D}/100, thermique ${best.sc.T}/100).` : ""} ${SP.balTxt || ""}${SP.srcNote ? " " + SP.srcNote + "." : ""} ${SP.beacons.length ? (hoursFromNow(i) <= RULES.cmp.window ? "Comparaison avec les balises active." : `Comparaison avec les balises : disponible à moins de ${RULES.cmp.window} h de l'heure choisie.`) : ""} ${SP.timing || ""}`, "ok");
+  spotMsg(`${SP.posNote ? SP.posNote + " " : ""}${SP.takeoffs.filter(t => t.sc).length} décollages notés, ${SP.landings.length} atterrissage${SP.landings.length > 1 ? "s" : ""}. ${best ? `Meilleur : ${best.name} (déco ${best.sc.D}/100, thermique ${best.sc.T}/100).` : ""} ${SP.balTxt || ""}${SP.srcNote ? " " + SP.srcNote + "." : ""} ${SP.beacons.length ? (hoursFromNow(i) <= RULES.cmp.window ? "Comparaison avec les balises active." : `Comparaison avec les balises : disponible à moins de ${RULES.cmp.window} h de l'heure choisie.`) : ""} ${SP.timing || ""}`, "ok");
 }
 async function searchSpots() {
   const lat = +$("lat").value, lon = +$("lon").value, r = +$("radius").value;
@@ -1855,7 +1857,17 @@ updateLink();
 $("hourSel").innerHTML = "<option>Exemple</option>";
 setSounding(structuredClone(EXAMPLE));
 S.cursorP = 850; updateReadout(); draw();
-tryFetch();
+// À l'ouverture : position actuelle, sondage et carte des sites autour ; à défaut, dernier site consulté
+function openAtPosition() {
+  const fallback = why => { SP.posNote = why ? why + " Carte centrée sur le dernier site consulté." : ""; tryFetch(); searchSpots(); };
+  if (!navigator.geolocation) { fallback(""); return; }
+  spotMsg("Recherche de votre position…");
+  navigator.geolocation.getCurrentPosition(pos => {
+    $("lat").value = pos.coords.latitude.toFixed(2); $("lon").value = pos.coords.longitude.toFixed(2);
+    S.place = "Ma position"; SP.here = true; SP.posNote = ""; updateLink(); tryFetch(); searchSpots();
+  }, err => fallback(err && err.code === 1 ? "Position non autorisée." : "Position introuvable."), { timeout: 10000, maximumAge: 10 * 60e3 });
+}
+openAtPosition();
 })();
 </script>
 </body>
