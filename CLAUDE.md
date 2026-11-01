@@ -64,6 +64,7 @@ Pour tester depuis un environnement cloud, autoriser dans le réseau de l'enviro
 - Toutes les couleurs passent par les variables du bloc `:root` (et leurs deux redéfinitions sombres). Pas de couleur en dur dans les composants.
 - Polices : **Archivo Narrow** (titres, étiquettes, boutons), **Archivo** (texte), **JetBrains Mono** (chiffres).
 - Conventions de l'émagramme à conserver : courbe d'état rouge, point de rosée bleu, particule en tirets, notes vert ≥ 70 / orange 40–69 / rouge < 40.
+- **Hiérarchie visuelle** (bloc « Passe de design » en fin de CSS) : tuiles sans bordure avec ombre douce (`--shadow`, `--radius` 10 px) ; boutons à trois niveaux — plein (action principale), `.soft` (teinté, secondaire), `.quiet` (discret) ; titre de section « Où voler ? », surtitre `.kick` pour l'émagramme ; barre de recherche `.searchbar`, réglages `.toolbar`, options secondaires et aide repliées dans `details.more` ; classement dense (`table-layout:fixed`, une ligne de raison tronquée `.why1`, pas de bouton par ligne : la fiche contient « Voir le sondage »).
 - La page doit fonctionner sur téléphone (≈ 400 px, aucun défilement horizontal) et en plein soleil (contrastes suffisants).
 
 ## Vérifier une modification
