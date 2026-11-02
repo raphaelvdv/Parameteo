@@ -339,14 +339,14 @@ input[type=number],input[type=text],input[type=search],select,textarea{border-ra
 .searchbar .field{min-width:0}
 .searchbar select{max-width:280px}
 /* Réglages compacts */
-.toolbar{display:grid;grid-template-columns:minmax(260px,auto) minmax(110px,auto) minmax(110px,auto) 1fr;gap:10px 16px;align-items:end;margin-top:12px}
+.toolbar{display:grid;grid-template-columns:minmax(260px,auto) minmax(110px,auto) 1fr;gap:10px 16px;align-items:end;margin-top:12px}
 .toolbar .field{display:grid;gap:4px;min-width:0}
 .toolbar select,.toolbar input,.toolbar button{height:38px;box-sizing:border-box;margin:0}
 .toolbar .field>select{width:100%}
 .tb-row{display:flex;gap:6px;min-width:0}.tb-row select{flex:1 1 auto;min-width:0}
 #spotsBtn{justify-self:end}
 .dt-opt{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:flex-end;margin:8px 0 10px}.dt-opt .note{flex:1 1 320px;margin:0}.dt-opt input{width:80px}
-@media (max-width:700px){.toolbar{grid-template-columns:1fr 1fr}.toolbar .f-hour{grid-column:1/-1}#spotsBtn{grid-column:1/-1;justify-self:stretch}}
+@media (max-width:700px){.toolbar{grid-template-columns:1fr 1fr}.toolbar .f-hour{grid-column:1/-1}#spotsBtn{justify-self:stretch}}
 .toolbar input[type=number]{width:72px}
 #spotsBtn{margin-left:auto}
 details.more{margin-top:10px}
@@ -518,8 +518,7 @@ footer{padding:4px 2px 0}
     <div class="toolbar">
       <div class="field f-hour"><label for="spotHour">Jour et heure</label><div class="tb-row"><select id="spotHour"><option value="">—</option></select><button id="nowBtn" type="button" class="soft" title="Choisir l'heure actuelle pour comparer avec les balises">Maintenant</button></div></div>
       <div class="field"><label for="radius">Rayon</label><select id="radius"><option value="10">10 km</option><option value="25" selected>25 km</option><option value="40">40 km</option><option value="60">60 km</option></select></div>
-      <div class="field"><label for="spotN" title="Moins de sites notés = prévision plus rapide">Sites notés</label><select id="spotN"><option value="15">15</option><option value="25" selected>25</option><option value="40">40</option></select></div>
-      <button id="spotsBtn" type="button">Noter les sites</button>
+      <button id="spotsBtn" type="button">Rechercher</button>
     </div>
     <details class="more"><summary>Plus d'options</summary>
       <div class="dt-opt"><div class="field"><label for="spotDT">Chauffe de référence (°C)</label><input id="spotDT" type="number" step="0.5" min="0" max="8" value="4"></div>
@@ -2329,8 +2328,8 @@ async function searchSpots() {
     SP.landings = sites.filter(s => s.kind === "landing");
     SP.takeoffs = sites.filter(s => s.kind === "takeoff").flatMap(splitFaces).sort((a, b) => a.dist - b.dist);
     if (!SP.takeoffs.length) { SP.data = []; renderSpots(); spotMsg("Aucun décollage référencé dans ce rayon. Agrandissez le rayon ou déplacez le centre.", "err"); return; }
-    const scored = SP.takeoffs.slice(0, +$("spotN").value || 25);
-    spotMsg(`${SP.takeoffs.length} décollages trouvés${got.cached ? " (liste en mémoire)" : ""}. Prévision ${MODEL_NAMES[$("model").value] || ""} pour les ${scored.length} plus proches…`);
+    const scored = SP.takeoffs;
+    spotMsg(`${SP.takeoffs.length} décollages trouvés${got.cached ? " (liste en mémoire)" : ""}. Prévision ${MODEL_NAMES[$("model").value] || ""} pour chacun…`);
     const terrP = Promise.all([loadTerrain(scored).catch(e => console.warn(e)), loadGround(scored).catch(e => console.warn(e))]);
     const locKey = t => `${t.lat.toFixed(4)},${t.lon.toFixed(4)}`, uniq = [...new Map(scored.map(t => [locKey(t), t])).values()];
     const t1 = performance.now(), arrU = await fetchForecasts(uniq); await terrP;
@@ -2675,7 +2674,7 @@ function rulesHtml() {
   <h3>Données et mises à jour</h3>
   <p>Open-Meteo est gratuit sans clé, avec un quota par connexion Internet (environ 600 appels par minute, 5 000 par heure, 10 000 par jour). Une recherche de sites compte pour un appel par déco (davantage avec beaucoup de variables), la carte des fronts pour ~300. Les prévisions déjà téléchargées sont réutilisées pendant 1 h. Consommation estimée aujourd'hui dans ce navigateur : <b>${omUseToday().toLocaleString("fr-FR")}</b> appels.</p>
   ${tbl([["Prévision", "Météo-France AROME / ARPEGE via Open-Meteo, gardée 1 h par point"], ["Carte des fronts", "gardée 6 h"], ["Terrains FFVL (data.gouv.fr)", "gardés 24 h"], ["Terrain IGN RGE ALTI (data.geopf.fr)", "gardé dans le navigateur"], ["Liste des balises FFVL", "gardée 24 h"],
-    ["Relevés des balises FFVL et Pioupiou", "relus à chaque recherche"], ["Sites OpenStreetMap / ParaglidingEarth (option)", "gardés 7 jours"], ["Décollages notés", "les 15, 25 ou 40 plus proches"]])}`;
+    ["Relevés des balises FFVL et Pioupiou", "relus à chaque recherche"], ["Sites OpenStreetMap / ParaglidingEarth (option)", "gardés 7 jours"], ["Décollages notés", "tous ceux du rayon de recherche"]])}`;
 }
 $("rulesBtn").addEventListener("click", () => { $("rulesB").innerHTML = rulesHtml(); const d = $("rules"); if (d.showModal) d.showModal(); else d.setAttribute("open", ""); });
 $("rulesX").addEventListener("click", () => { const d = $("rules"); if (d.close) d.close(); else d.removeAttribute("open"); });
