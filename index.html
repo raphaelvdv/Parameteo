@@ -1819,8 +1819,17 @@ function analyzeSpot(site, D, i) {
       for (let p = a.thP0; p >= topP; p -= 5) { const Te = envT(p); if (Te === null) continue; sum += tFromTheta(th, p) - Te; n++; }
       exc = n ? sum / n : null;
       const ws = snd.wind.filter(w => w.z >= z0 - 50 && w.z <= zt + 50); if (ws.length) wmax = Math.max(...ws.map(w => w.spd)) * 1.852; }
-    return { sun, exc, wmax, a, z, wind, spread: Tz !== null && Tdz !== null ? Tz - Tdz : null, gust: at("wind_gusts_10m"), rain: at("precipitation"), low: at("cloud_cover_low"), lowEff: above ? 0 : at("cloud_cover_low"), cloud: cd,
-      ceilZ: a.thermalTopP ? envZ(a.thermalTopP) : null, prim: a.relief ? "relief" : "sol", diag: a.diag ? a.diag.kind : null };
+    // Plafond exploitable : là où l'écart bulle / air ambiant retombe sous le seuil, au-dessus du maximum d'écart (pas là où il devient nul)
+    const Q = RULES.therm, expP = P => { if (!P || !P.topP) return null; const th = theta(P.T0, P.p0), pts = [];
+      for (let p = P.p0; p >= P.topP - 0.01; p -= 5) { const Te = envT(p); if (Te !== null) pts.push({ p, e: tFromTheta(th, p) - Te }); }
+      if (!pts.length) return P.topP; let km = 0; pts.forEach((q, k) => { if (q.e > pts[km].e) km = k; });
+      const lim = pts[km].e >= 2 * Q.minExc ? Q.minExc : pts[km].e / 2, q = pts.slice(km).find(q => q.e < lim); return q ? Math.max(q.p, P.topP) : P.topP; };
+    const gap = D.elev != null ? z - D.elev : null; let ceilP = expP(a.relief ? a.rel : a.sol), smooth = false;
+    // Relief lissé par le modèle : si le plafond « sol » vient d'un sol du modèle très différent du relief réel, on retient le plus prudent
+    if (!a.relief && a.rel && a.rel.topP && gap !== null && Math.abs(gap) >= Q.reliefGap) { const pr = expP(a.rel); if (pr !== null && (ceilP === null || pr > ceilP)) { ceilP = pr; smooth = true; } }
+    const ceilZ = ceilP !== null ? envZ(ceilP) : null, ceil0Z = a.thermalTopP ? envZ(a.thermalTopP) : null;
+    return { sun, exc, wmax, a, z, wind, gap, smooth, ceil0Z, spread: Tz !== null && Tdz !== null ? Tz - Tdz : null, gust: at("wind_gusts_10m"), rain: at("precipitation"), low: at("cloud_cover_low"), lowEff: above ? 0 : at("cloud_cover_low"), cloud: cd,
+      ceilZ, prim: a.relief || smooth ? "relief" : "sol", diag: a.diag ? a.diag.kind : null };
   } finally { Object.assign(S, save); }
 }
 const clamp01 = v => Math.max(0, Math.min(1, v));
@@ -1836,7 +1845,7 @@ const RULES = Object.freeze({
     gust: [[45, 40, "bad"], [35, 20, "warn"]],
     cloud: { spread: 1, pen: 30, edgePen: 20, low: 90, lowSpread: 3, lowPen: 15 },
     storm: { cape: 1000, cin: -50, pen: 30, capeOver: 300, cinOver: -100, penOver: 15 } },
-  therm: { hFull: 1500, hPts: 55, excFull: 1.5, excPts: 25, sun: [[50, 10], [80, 5]], cuMin: 500, cuPts: 10, bluePts: 5,
+  therm: { minExc: 0.5, reliefGap: 400, hFull: 1500, hPts: 55, excFull: 1.5, excPts: 25, sun: [[50, 10], [80, 5]], cuMin: 500, cuPts: 10, bluePts: 5,
     wind: [[30, 25], [20, 12]], rain: [[1, 50], [0.2, 25]], storm: 30, over: 12, noThermMax: 10 },
   cls: { good: 70, warn: 40 }, rankCut: 40,
   cmp: { window: 2, dist: 10, dz: 600, near: 5, nearDz: 400, fresh: 60, dSpeed: 8, dDir: 45, gustWarn: 30, gustBad: 40, strong: 25 },
@@ -2048,7 +2057,9 @@ function scoreSpot(site, r, sec) {
   const Q = RULES.therm, wt = []; let T = 0;
   const h = r.ceilZ !== null ? r.ceilZ - r.z : 0;
   T += clamp01(h / Q.hFull) * Q.hPts;
-  wt.push(h > 0 ? { t: `${a.cumulus ? "Base des cumulus" : "Plafond"} ${zr(r.ceilZ)}, soit +${zr(h)} au-dessus du déco`, cls: h >= 1000 ? "good" : h >= 400 ? "warn" : "bad" } : { t: "Pas de thermique au-dessus du déco (plouf)", cls: "bad" });
+  const cuTop = a.cumulus && r.ceil0Z != null && r.ceilZ != null && Math.abs(r.ceil0Z - r.ceilZ) < 30;
+  wt.push(h > 0 ? { t: `${cuTop ? "Base des cumulus" : "Plafond exploitable"} ${zr(r.ceilZ)}, soit +${zr(h)} au-dessus du déco${!cuTop && r.ceil0Z != null && r.ceil0Z - r.ceilZ >= 50 ? ` (thermique nul vers ${zr(r.ceil0Z)})` : ""}`, cls: h >= 1000 ? "good" : h >= 400 ? "warn" : "bad" } : { t: "Pas de thermique au-dessus du déco (plouf)", cls: "bad" });
+  if (r.smooth) wt.push({ t: `Relief lissé par le modèle (sol du modèle à ${zr(r.z - r.gap)}, déco à ${zr(r.z)}) : plafond « sol » peu fiable, plafond relief retenu (plus prudent)`, cls: "warn" });
   if (h > 0 && r.exc !== null) { T += clamp01(r.exc / Q.excFull) * Q.excPts;
     wt.push(r.exc >= 1 ? { t: "Thermiques francs", cls: "good" } : r.exc >= 0.5 ? { t: "Thermiques modérés", cls: "warn" } : { t: "Thermiques faibles", cls: "bad" }); }
   const lw = r.lowEff !== undefined ? r.lowEff : r.low;
@@ -2633,7 +2644,9 @@ function rulesHtml() {
   <h3>Plafond sol ou relief</h3>
   ${tbl([["Plafond sol : adiabatique sèche depuis la température au sol", "toujours calculé"], ["Plafond relief : depuis la pente, air libre + chauffe (calculée selon l'ensoleillement pour chaque déco)", "si coché, et pour chaque déco"],
     ["Couvercle sous les crêtes : thermiques de vallée sous l'altitude de la pente − 100 m", "plafond relief retenu"], ["Couche brassée : thermiques de vallée au-dessus de la pente", "plafond sol retenu"],
-    ["Plafond à moins de 100 m au-dessus du départ", "compté comme « pas de thermique »"]])}
+    ["Plafond à moins de 100 m au-dessus du départ", "compté comme « pas de thermique »"],
+    [`Plafond exploitable (notes et carte) : là où l'écart bulle / air ambiant retombe sous ${fr(RULES.therm.minExc)} °C, au-dessus de son maximum (sous la moitié du maximum si celui-ci est faible)`, "plus bas que le thermique nul de l'émagramme"],
+    [`Sol du modèle à plus de ${RULES.therm.reliefGap} m de l'altitude du déco et plafond « sol » retenu`, "plafond relief retenu s'il est plus bas (relief lissé)"]])}
   <h3>Diagnostic nuages</h3>
   <p>Pour chaque déco, les couches nuageuses sont repérées sur le sondage du modèle (niveaux presque saturés), puis comparées à l'altitude du déco, heure par heure jusqu'au soir. C'est une lecture indicative : les nuages bas sont le point faible des modèles (stratus souvent dissipés trop tôt).</p>
   ${tbl([[`Niveau nuageux : écart T – Td ≤ ${fr(RULES.clouds.sat)} °C`, "couche"], [`Déco à moins de ${RULES.clouds.margin} m de la couche`, "dans les nuages"],
