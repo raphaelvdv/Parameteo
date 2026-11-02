@@ -1841,7 +1841,8 @@ const RULES = Object.freeze({
   cls: { good: 70, warn: 40 }, rankCut: 40,
   cmp: { window: 2, dist: 10, dz: 600, near: 5, nearDz: 400, fresh: 60, dSpeed: 8, dDir: 45, gustWarn: 30, gustBad: 40, strong: 25 },
   sun: { slope: 30, cloudCut: 0.75, wideOri: 5, good: 0.6, weak: 0.3, grid: 25, minSlope: 5, pointOriSlope: 10, axis: [150, 300],
-    tau: 0.7, airExp: 0.678, windFrom: 10, windTo: 40, windCut: 0.5, wet: [[5, 0.7], [1, 0.85]], snow: [[0.05, 0.25], [0.01, 0.6]] },
+    tau: 0.7, airExp: 0.678, windFrom: 10, windTo: 40, windCut: 0.5,
+    season: [0.5, 0.6, 0.8, 0.9, 1, 1, 1, 1, 0.95, 0.8, 0.6, 0.5], wet: [[5, 0.7], [1, 0.85]], snow: [[0.05, 0.25], [0.01, 0.6]] },
   ground: [
     { id: "glacier", name: "glacier ou névé", f: 0.3, t: [["natural", "glacier"]] },
     { id: "water", name: "eau ou zone humide", f: 0.45, t: [["natural", "water"], ["natural", "wetland"], ["landuse", "reservoir"], ["landuse", "basin"]] },
@@ -1966,7 +1967,9 @@ function slopeSun(site, D, i, wk, cloudOv = null) {
   // neige au sol (si le modèle la fournit)
   const sd = (D.gv("snow_depth") || [])[i]; f.snow = sd == null ? 1 : (U.snow.find(([m]) => sd >= m) || [0, 1])[1];
   f.ground = site.ground ? site.ground.f : 1;
-  const dT = Math.round((isFinite(ref) ? ref : 4) * inc * f.sun * f.cloud * f.wind * f.wet * f.snow * f.ground * 10) / 10;
+  // saison : sol froid et humide, journées courtes (part de l'énergie reçue qui chauffe vraiment l'air), mois de l'hémisphère concerné
+  f.season = U.season[(mo - 1 + (site.lat < 0 ? 6 : 0)) % 12];
+  const dT = Math.round((isFinite(ref) ? ref : 4) * inc * f.sun * f.season * f.cloud * f.wind * f.wet * f.snow * f.ground * 10) / 10;
   return { ground: site.ground || null, el: sp.el, az: sp.az, aspect, inc, cloud, dT, src, slope: beta / rad, f, rain24, snowDepth: sd, ref: isFinite(ref) ? ref : 4 };
 }
 // Vent interpolé à une altitude, pour un point de prévision (10 m + niveaux de pression)
@@ -2008,6 +2011,7 @@ function heatWhy(u) { const f = u.f; if (!f) return ""; const L = [];
   if (f.wet < 1) L.push(`sol mouillé ${Math.round(f.wet * 100)} % (${fr(u.rain24)} mm en 24 h)`);
   if (u.ground && u.ground.id !== "unknown") L.push(`sol : ${u.ground.name} ${Math.round(u.ground.f * 100)} %`);
   if (f.snow < 1) L.push(`neige ${Math.round(f.snow * 100)} %`);
+  if (f.season < 1) L.push(`saison ${Math.round(f.season * 100)} % (sol froid, journées courtes)`);
   return L.length ? ` (réf. ${fr(u.ref)} °C ; ${L.join(", ")})` : ` (réf. ${fr(u.ref)} °C)`; }
 function scoreSpot(site, r, sec) {
   const R = RULES.deco;
@@ -2610,8 +2614,9 @@ function rulesHtml() {
     ["Sans données IGN (hors France, service indisponible)", `orientations du déco, pente supposée de ${RULES.sun.slope}°`],
     [`Point cliqué sur la carte, pente ≥ ${RULES.sun.pointOriSlope}°`, "orientation du « déco » = sens de descente de la pente"], ["Flèche bleue sur la carte", "sens de descente du terrain"], [`Déco ouvert à ${RULES.sun.wideOri} orientations ou plus, ou sans orientation`, "traité comme un sommet (surface horizontale)"],
     ["Ensoleillement", "angle d'incidence du soleil sur la pente, de 0 à 100 %"], [`Effet des nuages (nébulosité totale)`, `jusqu'à −${Math.round(RULES.sun.cloudCut * 100)} %`],
-    ["Chauffe du déco", "chauffe de référence × ensoleillement × saison × nuages × vent × sol mouillé × neige × nature du sol"],
-    ["Saison et heure", `intensité du rayonnement selon la hauteur du soleil (épaisseur d'atmosphère traversée) : ~100 % soleil haut d'été, ~65–70 % à midi en hiver`],
+    ["Chauffe du déco", "chauffe de référence × ensoleillement × hauteur du soleil × saison × nuages × vent × sol mouillé × neige × nature du sol"],
+    ["Hauteur du soleil (saison et heure)", `intensité du rayonnement selon la hauteur du soleil (épaisseur d'atmosphère traversée) : ~100 % soleil haut d'été, ~65–70 % à midi en hiver`],
+    ["Saison (sol froid et humide, journées courtes), par mois de janvier à décembre", RULES.sun.season.map(k => `${Math.round(k * 100)} %`).join(" · ")],
     [`Vent au déco de ${RULES.sun.windFrom} à ${RULES.sun.windTo} km/h et plus`, `chauffe réduite progressivement, jusqu'à −${Math.round(RULES.sun.windCut * 100)} %`],
     ...RULES.sun.wet.map(([mm, k]) => [`Pluie des 24 h précédentes ≥ ${fr(mm)} mm (sol mouillé)`, `× ${fr(k)}`]),
     ...RULES.sun.snow.map(([m, k]) => [`Neige au sol ≥ ${Math.round(m * 100)} cm (si fournie par le modèle)`, `× ${fr(k)}`]), [`Ensoleillement ≥ ${Math.round(RULES.sun.good * 100)} % / ≥ ${Math.round(RULES.sun.weak * 100)} %`, "vert / orange (sinon rouge)"]])}
