@@ -339,7 +339,14 @@ input[type=number],input[type=text],input[type=search],select,textarea{border-ra
 .searchbar .field{min-width:0}
 .searchbar select{max-width:280px}
 /* Réglages compacts */
-.toolbar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-end;margin-top:12px}
+.toolbar{display:grid;grid-template-columns:minmax(260px,auto) minmax(110px,auto) minmax(110px,auto) 1fr;gap:10px 16px;align-items:end;margin-top:12px}
+.toolbar .field{display:grid;gap:4px;min-width:0}
+.toolbar select,.toolbar input,.toolbar button{height:38px;box-sizing:border-box;margin:0}
+.toolbar .field>select{width:100%}
+.tb-row{display:flex;gap:6px;min-width:0}.tb-row select{flex:1 1 auto;min-width:0}
+#spotsBtn{justify-self:end}
+.dt-opt{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:flex-end;margin:8px 0 10px}.dt-opt .note{flex:1 1 320px;margin:0}.dt-opt input{width:80px}
+@media (max-width:700px){.toolbar{grid-template-columns:1fr 1fr}.toolbar .f-hour{grid-column:1/-1}#spotsBtn{grid-column:1/-1;justify-self:stretch}}
 .toolbar input[type=number]{width:72px}
 #spotsBtn{margin-left:auto}
 details.more{margin-top:10px}
@@ -509,13 +516,15 @@ footer{padding:4px 2px 0}
     <div class="vigi-banner" id="vigiBanner" hidden role="alert"></div>
     <div class="sec-h"><h2 id="spots-h">Où voler ?</h2><span class="sub" id="placeNow" aria-live="polite"></span></div>
     <div class="toolbar">
+      <div class="field f-hour"><label for="spotHour">Jour et heure</label><div class="tb-row"><select id="spotHour"><option value="">—</option></select><button id="nowBtn" type="button" class="soft" title="Choisir l'heure actuelle pour comparer avec les balises">Maintenant</button></div></div>
       <div class="field"><label for="radius">Rayon</label><select id="radius"><option value="10">10 km</option><option value="25" selected>25 km</option><option value="40">40 km</option><option value="60">60 km</option></select></div>
-      <div class="field"><label for="spotHour">Jour et heure</label><div style="display:flex;gap:6px"><select id="spotHour"><option value="">—</option></select><button id="nowBtn" type="button" class="soft" title="Choisir l'heure actuelle pour comparer avec les balises">Maintenant</button></div></div>
-      <div class="field"><label for="spotDT" title="Surchauffe de référence : pente sèche face au soleil d'été, ciel clair, vent faible. Elle est ajustée automatiquement pour chaque déco selon l'orientation, la saison et l'heure, les nuages, le vent, la pluie récente et la neige.">Chauffe réf. (°C)</label><input id="spotDT" type="number" step="0.5" min="0" max="8" value="4"></div>
       <div class="field"><label for="spotN" title="Moins de sites notés = prévision plus rapide">Sites notés</label><select id="spotN"><option value="15">15</option><option value="25" selected>25</option><option value="40">40</option></select></div>
       <button id="spotsBtn" type="button">Noter les sites</button>
     </div>
-    <details class="more"><summary>Plus d'options</summary><div class="row">
+    <details class="more"><summary>Plus d'options</summary>
+      <div class="dt-opt"><div class="field"><label for="spotDT">Chauffe de référence (°C)</label><input id="spotDT" type="number" step="0.5" min="0" max="8" value="4"></div>
+        <p class="note">Réglage expert, à laisser à 4 °C en temps normal. C'est la chauffe d'une pente sèche face au soleil d'été, par ciel clair et vent faible. Le site l'adapte tout seul à chaque déco : pente et orientation, hauteur du soleil, saison, nuages, vent, sol mouillé ou enneigé, nature du sol. Baissez-la seulement si les plafonds annoncés sont régulièrement trop hauts dans votre secteur, montez-la s'ils sont trop bas.</p></div>
+      <div class="row">
       <label for="balOn" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="balOn" checked> Balises : vent mesuré (FFVL, Pioupiou)</label>
       <label for="camOn" style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Nécessite une clé gratuite Windy, à saisir dans Paramètres"><input type="checkbox" id="camOn" checked> Webcams (Windy, clé dans Paramètres)</label>
       <label for="osmOn" style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Ajoute les sites d'OpenStreetMap et ParaglidingEarth absents de la liste FFVL (recherche plus lente)"><input type="checkbox" id="osmOn"> Compléter avec OpenStreetMap et ParaglidingEarth</label>
