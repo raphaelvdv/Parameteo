@@ -210,6 +210,8 @@ dialog#rules::backdrop{background:rgba(10,15,30,.45)}
 .fiche-b .pop h4{font-size:18px}
 .clu{position:relative;display:inline-flex;align-items:center}
 .clu .pin2{box-shadow:0 0 0 3px var(--surface),0 0 0 5px var(--accent),0 2px 6px rgba(0,0,0,.4)}
+.clu-rose{display:grid;place-items:center;background:var(--surface)!important;padding:2px 3px!important}
+.clu-bal{display:inline-flex;align-items:center;gap:2px;color:var(--surface)}.clu-bal.good{background:var(--good)}.clu-bal.warn{background:var(--warn)}.clu-bal.bad{background:var(--bad)}.clu-bal.mute{background:var(--muted)}
 .clu-n{position:absolute;top:-9px;right:-12px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--accent);color:var(--accent-ink);font:600 11px/18px var(--f-mono);text-align:center;border:2px solid var(--surface)}
 .clu-c{position:absolute;bottom:-10px;right:-10px;font-size:12px}
 .clu-l{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:3px}
@@ -2111,9 +2113,38 @@ function hideFiche() {
 function popOpts() { const m = $("map"), w = m.clientWidth || 360, h = m.clientHeight || 480;
   return { maxWidth: Math.max(220, Math.min(340, w - 70)), minWidth: Math.min(260, w - 70), maxHeight: Math.max(180, Math.round(h * 0.62)), autoPan: true, autoPanPadding: [20, 20], keepInView: true, className: "pp" }; }
 // Regroupement des marqueurs proches à l'écran (bulle avec le meilleur déco et le nombre d'éléments ; liste dans le volet)
-const CLU = { px: 46, maxZoom: 12, min: 3, minLow: 2, lowZoom: 10 };
+const CLU = { px: 46, maxZoom: 12, min: 3, minLow: 2, lowZoom: 10, spider: 15, ring1: 6, ringMul: 1.4, r0: 46, dr: 38 };
+// Rose des orientations favorables (secteurs verts de 45°), comme les icônes de déco de Spotair
+function roseSvg(ori) { const sec = [...new Set(ori.map(o => Math.round(((o % 360) + 360) % 360 / 45) % 8))];
+  const p = k => { const a1 = (k * 45 - 22.5 - 90) * Math.PI / 180, a2 = (k * 45 + 22.5 - 90) * Math.PI / 180;
+    return `M8 8 L${(8 + 7 * Math.cos(a1)).toFixed(2)} ${(8 + 7 * Math.sin(a1)).toFixed(2)} A7 7 0 0 1 ${(8 + 7 * Math.cos(a2)).toFixed(2)} ${(8 + 7 * Math.sin(a2)).toFixed(2)} Z`; };
+  return `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--surface)" stroke="var(--muted)" stroke-width=".8"/>${sec.map(k => `<path d="${p(k)}" fill="var(--good)"/>`).join("")}<circle cx="8" cy="8" r="1.4" fill="var(--ink)"/></svg>`; }
+// Balise de synthèse d'un groupe : vent médian, direction moyenne si les balises concordent, rafale maximale
+function cluBeacon(B) { const v = B.filter(b => isFinite(b.avg)); if (!v.length) return null;
+  const sp = v.map(b => b.avg).sort((a, b) => a - b), med = sp.length % 2 ? sp[(sp.length - 1) / 2] : (sp[sp.length / 2 - 1] + sp[sp.length / 2]) / 2;
+  let x = 0, y = 0, sum = 0; v.forEach(b => { if (!isFinite(b.dir)) return; const a = b.dir * Math.PI / 180; x += b.avg * Math.sin(a); y += b.avg * Math.cos(a); sum += b.avg; });
+  const dir = sum > 0 && Math.hypot(x, y) / sum >= 0.6 ? (Math.atan2(x, y) * 180 / Math.PI + 360) % 360 : null;
+  const o = { avg: med, max: Math.max(...v.map(b => b.max || b.avg)), date: Math.max(...v.map(b => b.date || 0)), dir }; o.cls = beaconCls(o); return o; }
+// Déploiement d'un groupe sur place, en cercles concentriques autour d'un cercle en tirets (la carte ne bouge pas)
+function unspider() { if (!SP.spider) return; const S0 = SP.spider; SP.spider = null;
+  S0.mem.forEach(m => { const e = m.getElement(); if (e) { e.style.display = "none"; if (e.firstElementChild) e.firstElementChild.style.transform = ""; } });
+  const ce = S0.cm.getElement(); if (ce) ce.style.display = ""; S0.lay.forEach(l => SP.map.removeLayer(l)); }
+function spiderfy(cm, mem) {
+  unspider(); const c = SP.map.latLngToContainerPoint(cm.getLatLng()), lay = [], col = getComputedStyle(document.documentElement).getPropertyValue("--hi").trim();
+  const ord = [...mem].sort((a, b) => b.options.dc - a.options.dc || ((b.options.info.x.sc || {}).rank ?? 0) - ((a.options.info.x.sc || {}).rank ?? 0));
+  let k = 0, ring = 0, cap = CLU.ring1;
+  while (k < ord.length) { const r = CLU.r0 + ring * CLU.dr, n = Math.min(cap, ord.length - k);
+    lay.push(L.circleMarker(cm.getLatLng(), { radius: r, color: col, weight: 2, dashArray: "5 5", fill: false, interactive: false }).addTo(SP.map));
+    for (let j = 0; j < n; j++, k++) { const m = ord[k], a = -Math.PI / 2 + 2 * Math.PI * j / n + ring * 0.4, tx = c.x + r * Math.cos(a), ty = c.y + r * Math.sin(a);
+      const e = m.getElement(); if (!e) continue; e.style.display = ""; const p = SP.map.latLngToContainerPoint(m.getLatLng());
+      if (e.firstElementChild) e.firstElementChild.style.transform = `translate(${Math.round(tx - p.x)}px,${Math.round(ty - p.y)}px)`;
+      lay.push(L.polyline([m.getLatLng(), SP.map.containerPointToLatLng([tx, ty])], { color: col, weight: 1, opacity: .7, interactive: false }).addTo(SP.map)); }
+    ring++; cap = Math.round(cap * CLU.ringMul) + 2; }
+  const ce = cm.getElement(); if (ce) ce.style.display = "none";
+  SP.spider = { cm, mem, lay };
+}
 function clusterMarkers() {
-  (SP.cluMk || []).forEach(m => SP.layer.removeLayer(m)); SP.cluMk = [];
+  unspider(); (SP.cluMk || []).forEach(m => SP.layer.removeLayer(m)); SP.cluMk = [];
   const all = []; SP.layer.eachLayer(l => { if (l instanceof L.Marker && l.options.dc && l.options.info) { const e = l.getElement(); if (e) e.style.display = ""; all.push(l); } });
   const z = SP.map.getZoom(); if (z > CLU.maxZoom) return;
   const sc = l => { const i = l.options.info; return l.options.dc * 1000 + (i.k === "deco" && i.x.sc ? i.x.sc.rank : 0); };
@@ -2125,11 +2156,14 @@ function clusterMarkers() {
     const mem = g.map(b => b.l), lat = mem.reduce((s, m) => s + m.getLatLng().lat, 0) / mem.length, lon = mem.reduce((s, m) => s + m.getLatLng().lng, 0) / mem.length;
     const decos = mem.filter(m => m.options.info.k === "deco" && m.options.info.x.sc).map(m => m.options.info.x).sort((x, y) => y.sc.rank - x.sc.rank), best = decos[0];
     const cnt = k => mem.filter(m => m.options.info.k === k).length, nb = cnt("bal"), nc = cnt("cam"), nl = cnt("land");
-    const head = best ? `<span class="${best.sc.dc}">${best.sc.D}</span><span class="${best.sc.tc}">${best.sc.T}</span>` : nb ? `<span class="mute">${nb} bal.</span>` : `<span class="mute">${mem.length}</span>`;
+    const ori = [...new Set(mem.filter(m => m.options.info.k === "deco").flatMap(m => m.options.info.x.ori || []))], bal = cluBeacon(mem.filter(m => m.options.info.k === "bal").map(m => m.options.info.x));
+    const head = (ori.length ? `<span class="clu-rose">${roseSvg(ori)}</span>` : "") + (best ? `<span class="${best.sc.dc}">${best.sc.D}</span><span class="${best.sc.tc}">${best.sc.T}</span>` : "")
+      + (bal ? `<span class="clu-bal ${bal.cls}" title="Balises : vent médian ${Math.round(bal.avg)} km/h, rafale max ${Math.round(bal.max)}">${bal.dir != null ? `<svg viewBox="0 0 24 24" width="11" height="11" style="transform:rotate(${(bal.dir + 180) % 360}deg)"><path d="M12 2 L19 21 L12 16 L5 21 Z" fill="currentColor"/></svg>` : "≈"}${Math.round(bal.avg)}</span>` : "")
+      + (!best && !bal ? `<span class="mute">${mem.length}</span>` : "");
     const tip = [decos.length && `${decos.length} déco${decos.length > 1 ? "s" : ""}`, nl && `${nl} atterro${nl > 1 ? "s" : ""}`, nb && `${nb} balise${nb > 1 ? "s" : ""}`, nc && `${nc} webcam${nc > 1 ? "s" : ""}`].filter(Boolean).join(", ");
     const html = `<div class="clu" title="${esc(tip)}${best ? " · meilleur : " + esc(best.name) : ""}"><div class="pin2">${head}</div><span class="clu-n">${mem.length}</span>${nc ? '<span class="clu-c" aria-hidden="true">📷</span>' : ""}</div>`;
     const cm = L.marker([lat, lon], { icon: L.divIcon({ className: "clear", html, iconSize: [70, 28], iconAnchor: [35, 14] }), title: `Groupe : ${tip}`, dc: 4, zIndexOffset: 1000 })
-      .on("click", ev => showFiche(ev.target, cluFiche(mem))).addTo(SP.layer);
+      .on("click", ev => { const cm = ev.target; showFiche(cm, cluFiche(mem)); if (mem.length <= CLU.spider) spiderfy(cm, mem); }).addTo(SP.layer);
     SP.cluMk.push(cm); }
 }
 function cluFiche(mem) {
@@ -2183,7 +2217,7 @@ function initMap() {
   const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 18, attribution: "© Esri" });
   topo.addTo(SP.map); L.control.layers({ "Topographique": topo, "OpenStreetMap": osm, "Satellite": sat }).addTo(SP.map);
   SP.layer = L.layerGroup().addTo(SP.map);
-  SP.map.on("click", e => clickPoint(e.latlng.lat, e.latlng.lng));
+  SP.map.on("click", e => { if (SP.spider) { unspider(); return; } clickPoint(e.latlng.lat, e.latlng.lng); });
   SP.map.on("zoomend", () => declutter());
   return true;
 }
@@ -2213,7 +2247,7 @@ function renderSpots() {
   $("sideN").textContent = list.length ? `${list.length} décos` : "";
   hideFiche();
   if (!initMap()) return;
-  SP.layer.clearLayers();
+  unspider(); SP.layer.clearLayers();
   const c = SP.center; L.circle([c.lat, c.lon], { radius: c.r * 1000, color: getComputedStyle(document.documentElement).getPropertyValue("--accent"), weight: 1.5, fillOpacity: 0.04 }).addTo(SP.layer);
   L.marker([c.lat, c.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin ctr"></div>', iconSize: [14, 14] }), title: SP.here && S.place === "Ma position" ? "Votre position" : "Centre de recherche" }).addTo(SP.layer);
   SP.landings.forEach(l => L.marker([l.lat, l.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin land">A</div>', iconSize: [20, 20] }), title: l.name, dc: 1, info: { k: "land", x: l } })
