@@ -193,6 +193,9 @@ dialog#rules::backdrop{background:rgba(10,15,30,.45)}
 .ffvl{font-size:12.5px;display:grid;gap:3px;margin:4px 0 2px}
 .ffvl .r{color:var(--muted)}
 .why-h{font-family:var(--f-display);font-weight:600;font-size:13px;margin-top:6px}
+.pin.cam{width:22px;height:22px;border-radius:6px;background:var(--ink);color:var(--surface)}
+.cam-img{display:block;width:100%;max-height:220px;object-fit:cover;border-radius:var(--radius-s);margin-top:6px;background:var(--rule)}
+.cams{margin:6px 0;font-size:13.5px}.cams a{color:var(--accent)}
 .pin.land{width:20px;height:20px;border-radius:4px;background:var(--dew);font-size:10px}
 .pin.ctr{width:14px;height:14px;background:var(--ink)}
 .pin.pt{width:24px;height:24px;background:var(--hi);font-size:15px}
@@ -406,7 +409,10 @@ footer{padding:4px 2px 0}
 
   <dialog id="rules" aria-labelledby="rules-t"><div class="rules-h"><h2 id="rules-t">Paramètres : règles de notation</h2><button type="button" class="ghost sm" id="rulesX">Fermer</button></div><div class="rules-key"><label for="mfKey">Clé API Météo-France (vigilance)</label>
     <div class="row" style="align-items:center"><input id="mfKey" type="password" autocomplete="off" spellcheck="false" placeholder="Collez votre clé ici"><button type="button" class="sm" id="mfKeySave">Enregistrer</button><button type="button" class="quiet sm" id="mfKeyDel">Effacer</button></div>
-    <p class="note">Pour afficher la vigilance : créez un compte gratuit sur <a href="https://portail-api.meteofrance.fr" target="_blank" rel="noopener">portail-api.meteofrance.fr</a>, abonnez-vous à l'API « Bulletin Vigilance » et générez une clé (« API Key »). Elle est gardée <b>uniquement dans ce navigateur</b> et n'est envoyée qu'à Météo-France.</p><p class="msg" id="mfKeyMsg" hidden></p></div>
+    <p class="note">Pour afficher la vigilance : créez un compte gratuit sur <a href="https://portail-api.meteofrance.fr" target="_blank" rel="noopener">portail-api.meteofrance.fr</a>, abonnez-vous à l'API « Bulletin Vigilance » et générez une clé (« API Key »). Elle est gardée <b>uniquement dans ce navigateur</b> et n'est envoyée qu'à Météo-France.</p><p class="msg" id="mfKeyMsg" hidden></p>
+    <label for="wcKey" style="margin-top:12px;display:block">Clé API Windy (webcams sur la carte)</label>
+    <div class="row" style="align-items:center"><input id="wcKey" type="password" autocomplete="off" spellcheck="false" placeholder="Collez votre clé ici"><button type="button" class="sm" id="wcKeySave">Enregistrer</button><button type="button" class="quiet sm" id="wcKeyDel">Effacer</button></div>
+    <p class="note">Pour afficher les webcams : créez un compte gratuit sur <a href="https://api.windy.com/keys" target="_blank" rel="noopener">api.windy.com/keys</a> et générez une clé pour l'API « Webcams ». Elle est gardée <b>uniquement dans ce navigateur</b> et n'est envoyée qu'à Windy. Sans clé, les fiches affichent seulement les webcams citées par la FFVL.</p><p class="msg" id="wcKeyMsg" hidden></p></div>
   <div class="rules-b" id="rulesB"></div></dialog>
 
   <div class="topbar">
@@ -498,6 +504,7 @@ footer{padding:4px 2px 0}
     </div>
     <details class="more"><summary>Plus d'options</summary><div class="row">
       <label for="balOn" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="balOn" checked> Balises : vent mesuré (FFVL, Pioupiou)</label>
+      <label for="camOn" style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Nécessite une clé gratuite Windy, à saisir dans Paramètres"><input type="checkbox" id="camOn" checked> Webcams (Windy, clé dans Paramètres)</label>
       <label for="osmOn" style="display:flex;gap:6px;align-items:center;cursor:pointer" title="Ajoute les sites d'OpenStreetMap et ParaglidingEarth absents de la liste FFVL (recherche plus lente)"><input type="checkbox" id="osmOn"> Compléter avec OpenStreetMap et ParaglidingEarth</label>
       <button id="balBtn" type="button" class="soft sm">Actualiser les balises</button>
       <button id="spotsRefresh" type="button" class="soft sm" title="Ignore la liste gardée en mémoire et la retélécharge">Mettre à jour la liste des sites</button>
@@ -2132,11 +2139,14 @@ function initMap() {
   SP.map.on("zoomend", () => declutter());
   return true;
 }
+const camHost = u => { try { return new URL(u).hostname.replace(/^(www|m|app)\./, ""); } catch { return "lien"; } };
+function camsHtml(x) { const c = x && x.cams; if (!c || !c.length) return "";
+  return `<div class="cams">📷 Webcam ${c.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(camHost(u))} ↗</a>`).join(" · ")} <span class="sub">(lien cité par la FFVL)</span></div>`; }
 function cloudHtml(r) { const c = r && r.cloud; if (!c) return "";
   return `<div class="why-h">Nuages <span class="pill ${c.cls}">${esc(c.label)}</span></div><ul class="why">${c.it.map(w => `<li class="${w.cls}">${esc(w.t)}</li>`).join("")}</ul>`; }
 function popupHtml(t) { const r = t.res, sc = t.sc, nl = nearestLanding(t);
   const li = arr => `<ul class="why">${arr.map(w => `<li class="${w.cls}">${esc(w.t)}</li>`).join("")}</ul>`;
-  return `<div class="pop"><h4>${esc(t.name)}</h4><div class="meta">${t.alt != null ? Math.round(t.alt) + " m" : "alt. ?"} · ${t.ori.length ? [...new Set(t.ori.map(abbr))].join(", ") : "orientation ?"} · ${fr(t.dist)} km · plafond ${r.prim}</div>${terrHtml(t)}${ffvlHtml(t)}
+  return `<div class="pop"><h4>${esc(t.name)}</h4><div class="meta">${t.alt != null ? Math.round(t.alt) + " m" : "alt. ?"} · ${t.ori.length ? [...new Set(t.ori.map(abbr))].join(", ") : "orientation ?"} · ${fr(t.dist)} km · plafond ${r.prim}</div>${terrHtml(t)}${ffvlHtml(t)}${camsHtml(t)}
     <div class="why-h">Décollage <span class="score ${sc.dc}">${sc.D}</span></div>${li(sc.wd)}
     ${cmpHtml(t)}
     <div class="why-h">Thermique en local <span class="score ${sc.tc}">${sc.T}</span></div>${li(sc.wt)}
@@ -2149,7 +2159,7 @@ function renderSpots() {
   tb.innerHTML = list.length ? list.map(t => { const r = t.res, w = r.wind, sc = t.sc;
     const worst = [...sc.wd, ...sc.wt].find(x => x.cls === "bad") || [...sc.wd, ...sc.wt].find(x => x.cls === "warn");
     return `<tr data-row="${esc(t.id)}"><td class="r"><span class="score ${sc.dc}">${sc.D}</span></td><td class="r"><span class="score ${sc.tc}">${sc.T}</span></td>
-      <td><div class="nm">${esc(t.name)}</div><div class="sub">${t.alt != null ? Math.round(t.alt) + " m" : "alt. ?"} · ${fr(t.dist)} km · ${t.ori.length ? [...new Set(t.ori.map(abbr))].join(", ") : "orientation ?"}${r.cloud && r.cloud.kind === "above" ? ' · <b style="color:var(--hi)">☀ au-dessus des nuages</b>' : r.cloud && r.cloud.kind === "in" ? " · ☁ dans les nuages" : ""}</div><div class="why1" title="${esc(worst ? worst.t : "")}">${t.ffvl && t.ffvl.st !== "actif" ? `<b style="color:var(--${(ST_FFVL[t.ffvl.st] || ["warn"])[0]})">${esc((ST_FFVL[t.ffvl.st] || [0, t.ffvl.st])[1])}</b> · ` : ""}${esc(worst ? worst.t : "Conditions favorables")}</div></td>
+      <td><div class="nm">${esc(t.name)}</div><div class="sub">${t.alt != null ? Math.round(t.alt) + " m" : "alt. ?"} · ${fr(t.dist)} km · ${t.ori.length ? [...new Set(t.ori.map(abbr))].join(", ") : "orientation ?"}${r.cloud && r.cloud.kind === "above" ? ' · <b style="color:var(--hi)">☀ au-dessus des nuages</b>' : r.cloud && r.cloud.kind === "in" ? " · ☁ dans les nuages" : ""}${t.cams && t.cams.length ? ' · <span title="Webcam citée par la FFVL">📷</span>' : ""}</div><div class="why1" title="${esc(worst ? worst.t : "")}">${t.ffvl && t.ffvl.st !== "actif" ? `<b style="color:var(--${(ST_FFVL[t.ffvl.st] || ["warn"])[0]})">${esc((ST_FFVL[t.ffvl.st] || [0, t.ffvl.st])[1])}</b> · ` : ""}${esc(worst ? worst.t : "Conditions favorables")}</div></td>
       <td><div>${w ? `${abbr(w.dir)} ${Math.round(w.spd * 1.852)}` : "—"}</div><div style="margin-top:4px">${t.obs ? (t.cmp && t.cmp.active ? `<span class="pill ${t.cmp.v[0]}" title="${esc(t.cmp.v[1] + " · " + t.obs.name)}">${abbr(t.obs.dir)} ${Math.round(t.obs.avg)}/${Math.round(t.obs.max)}</span>` : `<span class="sub" title="Mesure actuelle, comparaison inactive à cette heure">${abbr(t.obs.dir)} ${Math.round(t.obs.avg)}/${Math.round(t.obs.max)}</span>`) : ""}</div></td><td class="r">${r.ceilZ !== null ? Math.round(r.ceilZ) : "—"}</td></tr>`; }).join("")
     : `<tr><td colspan="5" class="sub">Aucun décollage noté.</td></tr>`;
   $("sideN").textContent = list.length ? `${list.length} décos` : "";
@@ -2159,8 +2169,8 @@ function renderSpots() {
   const c = SP.center; L.circle([c.lat, c.lon], { radius: c.r * 1000, color: getComputedStyle(document.documentElement).getPropertyValue("--accent"), weight: 1.5, fillOpacity: 0.04 }).addTo(SP.layer);
   L.marker([c.lat, c.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin ctr"></div>', iconSize: [14, 14] }), title: SP.here && S.place === "Ma position" ? "Votre position" : "Centre de recherche" }).addTo(SP.layer);
   SP.landings.forEach(l => L.marker([l.lat, l.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin land">A</div>', iconSize: [20, 20] }), title: l.name, dc: 1 })
-    .on("click", ev => showFiche(ev.target, `<div class="pop"><h4>${esc(l.name)}</h4><div class="meta">Atterrissage · ${l.alt != null ? Math.round(l.alt) + " m" : "alt. ?"}</div>${ffvlHtml(l)}<a href="${esc(l.url)}" target="_blank" rel="noopener">${l.src === "FFVL" ? "Rechercher le site sur ffvl.fr" : "Fiche " + esc(l.src)} ↗</a></div>`)).addTo(SP.layer));
-  drawBeacons();
+    .on("click", ev => showFiche(ev.target, `<div class="pop"><h4>${esc(l.name)}</h4><div class="meta">Atterrissage · ${l.alt != null ? Math.round(l.alt) + " m" : "alt. ?"}</div>${ffvlHtml(l)}${camsHtml(l)}<a href="${esc(l.url)}" target="_blank" rel="noopener">${l.src === "FFVL" ? "Rechercher le site sur ffvl.fr" : "Fiche " + esc(l.src)} ↗</a></div>`)).addTo(SP.layer));
+  drawBeacons(); drawWebcams();
   SP.takeoffs.forEach(t => { const a = slopeArrow(t); if (a) a.addTo(SP.layer); });
   SP.takeoffs.forEach(t => { const sc = t.sc;
     const ck = t.res && t.res.cloud ? t.res.cloud.kind : null, cb = ck === "above" ? '<span class="sea" aria-label="au-dessus de la mer de nuages">☀</span>' : ck === "in" ? '<span class="fog" aria-label="déco dans les nuages">☁</span>' : "";
@@ -2203,7 +2213,7 @@ async function searchSpots() {
   SP.center = { lat, lon, r }; SP.fitted = false; SP.visFit = !$("pane-voler").hidden; $("spotsBtn").disabled = true;
   try {
     spotMsg("Recherche des décollages et atterrissages…"); const t0 = performance.now();
-    const balP = loadBeacons().catch(e => { console.warn(e); return ""; });
+    const balP = loadBeacons().catch(e => { console.warn(e); return ""; }), camP = loadWebcams().catch(e => { console.warn(e); return ""; });
     let got; try { got = await getSites(lat, lon, r); } catch (e) { spotMsg(e.message, "err"); return; }
     SP.srcNote = got.note; const tSites = (performance.now() - t0) / 1000;
     const sites = got.sites.map(s => ({ ...s, ori: [...(s.ori || [])], dist: distKm(lat, lon, s.lat, s.lon) })).filter(s => s.dist <= r + 0.5);
@@ -2216,7 +2226,7 @@ async function searchSpots() {
     const locKey = t => `${t.lat.toFixed(4)},${t.lon.toFixed(4)}`, uniq = [...new Map(scored.map(t => [locKey(t), t])).values()];
     const t1 = performance.now(), arrU = await fetchForecasts(uniq); await terrP;
     const byLoc = new Map(uniq.map((t, k) => [locKey(t), arrU[k]])), arr = scored.map(t => byLoc.get(locKey(t)));
-    SP.balTxt = await balP;
+    SP.balTxt = await balP; const camTxt = await camP; if (camTxt) SP.balTxt += " " + camTxt;
     SP.timing = `Durée : sites ${got.cached ? "en mémoire" : fr(tSites) + " s"}, prévision ${fr((performance.now() - t1) / 1000)} s.`;
     SP.data = scored.map((t, k) => arr[k] && arr[k].hourly ? datasetOf(arr[k]) : null);
     SP.times = (arr[0] && arr[0].hourly && arr[0].hourly.time) || [];
@@ -2229,7 +2239,12 @@ async function searchSpots() {
 }
 const DG = id => `https://www.data.gouv.fr/api/1/datasets/r/${id}`;
 const FFVL_TERRAINS = "4375c95d-cf26-4e71-b72d-2e09be5a0e36", FFVL_BALISES = "8d795154-9145-4ab2-99de-6768a36f31ea", FFVL_RELEVES = "047b2ab9-627f-4e5f-9d68-5b948433c61d";
-const FT_KEY = "emagramme-ffvl-terrains", DAY = 864e5;
+const FT_KEY = "emagramme-ffvl-terrains2", DAY = 864e5;
+try { localStorage.removeItem("emagramme-ffvl-terrains"); localStorage.removeItem("emagramme-ffvl-balises"); } catch { }
+// Liens webcam cités dans les textes FFVL (« Webcam : https://… »)
+function camLinks(...txt) { const out = [], rx = /webcam[^h\n]{0,40}?(https?:\/\/[^\s<>"']+)/gi;
+  for (const t of txt) { if (!t) continue; let m; while ((m = rx.exec(String(t)))) { const u = m[1].replace(/[.,;)\]]+$/, ""); if (!out.includes(u) && !/youtube\.com|kymaya\.com\/carte/i.test(u)) out.push(u); } }
+  return out.slice(0, 3); }
 async function ffvlTerrains() {
   if (!SP.noCache) {
     if (SP.ffvlT && Date.now() - SP.ffvlT.t < DAY) return { list: SP.ffvlT.list, cached: true };
@@ -2239,7 +2254,7 @@ async function ffvlTerrains() {
   const triv = v => !v || /^(\.|ras|aucun|néant|neant|-)\s*$/i.test(String(v).trim());
   const list = (Array.isArray(raw) ? raw : []).filter(x => /parapente/i.test(x.possible_usages_text || "") && /d[ée]collage|treuil|atterrissage/i.test(x.flying_functions_text || "") && isFinite(x.latitude) && isFinite(x.longitude))
     .map(x => ({ i: x.suid, n: x.toponym, a: +x.latitude, o: +x.longitude, z: x.altitude ?? null, f: x.flying_functions_text, ok: x.wind_orientations_ok || "", nok: x.wind_orientations_nok || "",
-      st: x.status, r: String(x.restrictions || "").trim().slice(0, 400), w: triv(x.warnings) ? "" : String(x.warnings).trim().slice(0, 300), al: x.alert_msg || "", e: x.terrain_experience_conseillee || "", c: x.convention_type || "" }));
+      st: x.status, r: String(x.restrictions || "").trim().slice(0, 400), w: triv(x.warnings) ? "" : String(x.warnings).trim().slice(0, 300), al: x.alert_msg || "", e: x.terrain_experience_conseillee || "", c: x.convention_type || "", cam: camLinks(x.description, x.tourist_info) }));
   if (!list.length) throw new Error("fichier des terrains vide");
   SP.ffvlT = { t: Date.now(), list };
   try { localStorage.setItem(FT_KEY, JSON.stringify(SP.ffvlT)); } catch (e) { console.warn("Terrains FFVL non mémorisés", e); }
@@ -2251,7 +2266,7 @@ function ffvlSitesAround(list, lat, lon, r) {
   const out = [];
   for (const x of list) { if (distKm(lat, lon, x.a, x.o) > r + 0.5) continue;
     const base = { src: "FFVL", lat: x.a, lon: x.o, alt: x.z, nok: parseOri(x.nok), name: titleCase(x.n), url: "https://federation.ffvl.fr/pages/rechercher-un-site-vol",
-      ffvl: { st: x.st, r: x.r, w: x.w, al: x.al, e: x.e, c: x.c, f: x.f } };
+      ffvl: { st: x.st, r: x.r, w: x.w, al: x.al, e: x.e, c: x.c, f: x.f }, cams: x.cam || [] };
     if (/d[ée]collage|treuil/i.test(x.f)) out.push({ ...base, id: `ffvl-${x.i}`, kind: "takeoff", ori: parseOri(x.ok) });
     if (/atterrissage/i.test(x.f)) out.push({ ...base, id: `ffvl-${x.i}-a`, kind: "landing", ori: [] });
   }
@@ -2386,17 +2401,17 @@ async function tryUrls(urls) { let err = null;
   throw err || new Error("réponse vide"); }
 async function fetchFFVL() {
   let list = null;
-  try { const c = JSON.parse(localStorage.getItem("emagramme-ffvl-balises") || "null"); if (c && c.list && Date.now() - c.t < DAY) list = c.list; } catch {}
+  try { const c = JSON.parse(localStorage.getItem("emagramme-ffvl-balises2") || "null"); if (c && c.list && Date.now() - c.t < DAY) list = c.list; } catch {}
   if (!list) { const raw = await getJSON(DG(FFVL_BALISES), 20000);
-    list = (Array.isArray(raw) ? raw : []).map(b => ({ id: b.idBalise, nom: b.nom, lat: +b.latitude, lon: +b.longitude, alt: b.altitude ?? null, m: +b.en_maintenance || 0 }));
-    try { localStorage.setItem("emagramme-ffvl-balises", JSON.stringify({ t: Date.now(), list })); } catch {} }
+    list = (Array.isArray(raw) ? raw : []).map(b => ({ id: b.idBalise, nom: b.nom, lat: +b.latitude, lon: +b.longitude, alt: b.altitude ?? null, m: +b.en_maintenance || 0, cam: camLinks(b.remarques) }));
+    try { localStorage.setItem("emagramme-ffvl-balises2", JSON.stringify({ t: Date.now(), list })); } catch {} }
   const rel = await getJSON(DG(FFVL_RELEVES), 15000), last = {};
   (Array.isArray(rel) ? rel : []).forEach(m => { const t = Date.parse(m.date); if (!last[m.idbalise] || t > last[m.idbalise].t) last[m.idbalise] = { t, m }; });
   return list.map(b => { const L = last[b.id]; if (!L || b.m || !isFinite(b.lat) || !isFinite(b.lon)) return null;
     const m = L.m, avg = +m.vitesseVentMoy, max = +m.vitesseVentMax, dir = +(m.directVentMoy ?? m.directVentInst);
     if (!isFinite(avg) || !isFinite(dir)) return null;
     return { src: "FFVL", id: "ffvl-b" + b.id, name: b.nom || `Balise ${b.id}`, lat: b.lat, lon: b.lon, alt: b.alt, avg, max: isFinite(max) ? max : avg, dir, date: L.t,
-      url: `https://www.balisemeteo.com/balise.php?idBalise=${b.id}` };
+      url: `https://www.balisemeteo.com/balise.php?idBalise=${b.id}`, cams: b.cam || [] };
   }).filter(Boolean);
 }
 async function fetchPioupiou() {
@@ -2430,6 +2445,31 @@ function beaconFor(t, i) {
 const beaconCls = b => (Date.now() - b.date) / 60000 > 60 ? "mute" : b.max > 35 || b.avg > 25 ? "bad" : b.avg > 15 ? "warn" : "good";
 const agoTxt = b => { const m = Math.round((Date.now() - b.date) / 60000); return !isFinite(m) ? "heure inconnue" : m < 60 ? `il y a ${Math.max(0, m)} min` : `il y a ${Math.round(m / 60)} h`; };
 function beaconLine(o) { return `${/^balise/i.test(o.name) ? "" : "Balise "}${o.name} (${o.src}, ${fr(o.d)} km${o.alt != null ? `, ${Math.round(o.alt)} m` : ""}) : ${abbr(o.dir)} ${Math.round(o.avg)} km/h, rafales ${Math.round(o.max)}, ${agoTxt(o)}`; }
+// Webcams Windy (option, clé gratuite de l'utilisateur gardée dans ce navigateur)
+const WC = { key: (() => { try { return localStorage.getItem("emagramme-windy-key") || ""; } catch { return ""; } })(), list: [], at: 0, for: "", err: "" };
+async function loadWebcams(force) {
+  WC.err = ""; if (!WC.key || !$("camOn").checked || !SP.center) { WC.list = []; return ""; }
+  const c = SP.center, k = `${c.lat.toFixed(2)},${c.lon.toFixed(2)},${c.r}`;
+  if (!force && WC.for === k && Date.now() - WC.at < 9 * 60e3) return WC.txt;
+  try { const d = await getJSON(`https://api.windy.com/webcams/api/v3/webcams?nearby=${c.lat.toFixed(4)},${c.lon.toFixed(4)},${Math.min(250, c.r + 5)}&limit=50&include=images,location,urls,player`, 15000, { headers: { "x-windy-api-key": WC.key } });
+    WC.list = (d.webcams || []).filter(w => w.location && isFinite(w.location.latitude) && (w.status || "active") === "active").map(w => ({ id: w.webcamId, title: w.title || "Webcam", lat: +w.location.latitude, lon: +w.location.longitude,
+      city: w.location.city || "", upd: w.lastUpdatedOn ? Date.parse(w.lastUpdatedOn) : null, img: w.images && w.images.current ? (w.images.current.preview || w.images.current.thumbnail) : null,
+      day: w.player && w.player.day ? w.player.day : null, url: (w.urls && w.urls.detail) || `https://www.windy.com/webcams/${w.webcamId}` }));
+    WC.at = Date.now(); WC.for = k; WC.txt = `${WC.list.length} webcam${WC.list.length > 1 ? "s" : ""} (Windy).`; return WC.txt;
+  } catch (e) { WC.list = []; WC.err = /401|403|refus/i.test(e.message) ? "clé Windy refusée" : e.message; return `Webcams Windy indisponibles (${WC.err}).`; }
+}
+function camFiche(w) {
+  const ago = w.upd ? Math.round((Date.now() - w.upd) / 60000) : null;
+  return `<div class="pop"><h4>📷 ${esc(w.title)}</h4><div class="meta">Webcam${w.city ? " · " + esc(w.city) : ""}${ago != null ? ` · image ${ago < 60 ? `il y a ${ago} min` : `il y a ${Math.round(ago / 60)} h`}` : ""}</div>
+    ${w.img ? `<a href="${esc(w.url)}" target="_blank" rel="noopener"><img class="cam-img" src="${esc(w.img)}" alt="Dernière image de la webcam ${esc(w.title)}" loading="lazy"></a>` : ""}
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px"><a href="${esc(w.url)}" target="_blank" rel="noopener">Voir en direct ↗</a>${w.day ? `<a href="${esc(w.day)}" target="_blank" rel="noopener">Accéléré de la journée ↗</a>` : ""}</div>
+    <div class="sub" style="margin-top:6px">Webcams fournies par <a href="https://www.windy.com/webcams" target="_blank" rel="noopener">windy.com</a>.</div></div>`; }
+function drawWebcams() {
+  if (!SP.map || !WC.list.length) return;
+  WC.list.forEach(w => L.marker([w.lat, w.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin cam" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13"><path d="M4 7h3l2-2.5h6L17 7h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z" fill="currentColor"/><circle cx="12" cy="13" r="3.6" fill="var(--accent)"/></svg></div>', iconSize: [22, 22] }), title: "Webcam : " + w.title, dc: 1, zIndexOffset: -150 })
+    .on("click", async ev => { const m = ev.target; showFiche(m, camFiche(w));
+      if (Date.now() - WC.at > 9 * 60e3) { await loadWebcams(true); const n = WC.list.find(x => x.id === w.id); if (n && SP.selMk === m) showFiche(m, camFiche(n)); } }).addTo(SP.layer));
+}
 function drawBeacons() {
   if (!SP.map) return;
   SP.beacons.forEach(b => { const cls = beaconCls(b);
@@ -2437,7 +2477,7 @@ function drawBeacons() {
     L.marker([b.lat, b.lon], { icon: L.divIcon({ className: "clear", html, iconSize: [64, 20], iconAnchor: [10, 10] }), title: b.name, dc: 2, zIndexOffset: -100 })
       .on("click", ev => showFiche(ev.target, `<div class="pop"><h4>${esc(b.name)}</h4><div class="meta">Balise ${esc(b.src)}${b.alt != null ? ` · ${Math.round(b.alt)} m` : ""} · ${agoTxt(b)}</div>
         <div>Vent du ${esc(dirName(b.dir))} (${Math.round(b.dir)}°) : <b>${Math.round(b.avg)} km/h</b>, rafales ${Math.round(b.max)} km/h</div>
-        <a href="${esc(b.url)}" target="_blank" rel="noopener">Voir la balise ↗</a></div>`)).addTo(SP.layer); });
+        ${camsHtml(b)}<a href="${esc(b.url)}" target="_blank" rel="noopener">Voir la balise ↗</a></div>`)).addTo(SP.layer); });
 }
 $("balBtn").addEventListener("click", async () => { if (!SP.center) { spotMsg("Lancez d'abord la recherche des sites.", "err"); return; }
   spotMsg("Lecture des balises…"); const t = await loadBeacons(); if (SP.data.length) scoreAll(); spotMsg(t || "Balises désactivées.", "ok"); });
@@ -3016,6 +3056,15 @@ $("mfKeySave").addEventListener("click", async () => { VIG.key = $("mfKey").valu
   vigKeyMsg("Vérification de la clé…");
   try { await vigData(true); vigKeyMsg("Clé valide : la vigilance s'affiche dans l'onglet Situation générale.", "ok"); } catch (e) { vigKeyMsg("Clé refusée ou API inaccessible : " + e.message, "err"); }
   renderVigi(); });
+$("wcKey").value = WC.key;
+function wcKeyMsg(t, k) { const m = $("wcKeyMsg"); m.hidden = !t; m.className = "msg " + (k || ""); m.textContent = t || ""; }
+$("wcKeySave").addEventListener("click", async () => { WC.key = $("wcKey").value.trim(); WC.for = "";
+  try { WC.key ? localStorage.setItem("emagramme-windy-key", WC.key) : localStorage.removeItem("emagramme-windy-key"); } catch { }
+  if (!WC.key) { wcKeyMsg("Clé effacée.", "ok"); return; }
+  if (!SP.center) { wcKeyMsg("Clé enregistrée. Les webcams s'afficheront à la prochaine recherche de sites.", "ok"); return; }
+  wcKeyMsg("Vérification…"); const t = await loadWebcams(true); wcKeyMsg(WC.err ? "Échec : " + WC.err + "." : "Clé enregistrée : " + t, WC.err ? "err" : "ok"); if (!WC.err && SP.data.length) scoreAll(); });
+$("wcKeyDel").addEventListener("click", () => { WC.key = ""; WC.list = []; $("wcKey").value = ""; try { localStorage.removeItem("emagramme-windy-key"); } catch { } wcKeyMsg("Clé effacée.", "ok"); if (SP.data.length) scoreAll(); });
+$("camOn").addEventListener("change", async () => { if (!$("camOn").checked) WC.list = []; else await loadWebcams(true); if (SP.data.length) scoreAll(); });
 $("mfKeyDel").addEventListener("click", () => { VIG.key = ""; VIG.data = null; $("mfKey").value = ""; try { localStorage.removeItem("emagramme-mf-key"); } catch {} vigKeyMsg("Clé effacée.", "ok"); renderVigi(); });
 document.addEventListener("click", e => { if (e.target.closest("[data-open-rules]")) $("rulesBtn").click(); });
 
