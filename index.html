@@ -1632,7 +1632,7 @@ async function getJSON(url, ms = 25000, opts = {}) { const c = new AbortControll
   try { r = await fetch(url, { ...opts, signal: c.signal }); }
   catch (e) { clearTimeout(to); throw new Error(e.name === "AbortError" ? "délai dépassé" : "accès bloqué (réseau ou autorisation du serveur)"); }
   try {
-    if (!r.ok) { let why = ""; try { const j = await r.json(); why = j && j.reason ? omReason(String(j.reason)) : ""; } catch { }
+    if (!r.ok) { let why = ""; try { const j = await r.json(); why = j && j.reason ? omReason(String(j.reason)) : j && (j.description || j.message) ? `HTTP ${r.status}${j.code ? " / " + j.code : ""} : ${j.description || j.message}` : ""; } catch { }
       throw new Error(why || (r.status === 429 ? "serveur saturé (HTTP 429)" : r.status === 403 ? "accès refusé (HTTP 403)" : `HTTP ${r.status}`)); }
     let d; try { d = await r.json(); } catch { throw new Error("réponse illisible"); }
     if (d && d.error) throw new Error(d.reason || "erreur"); return d;
@@ -3122,7 +3122,8 @@ async function renderVigi(force) {
     if (!V.periods.length) { body.innerHTML = `<p class="note">Aucune donnée de vigilance pour ce département.</p>`; return; }
     body.innerHTML = V.periods.map(P => `<div class="vig-day"><h3>${P.ech === "J1" ? "Demain" : "Aujourd'hui"} <span class="vig-chip vig-c${P.max}">Vigilance ${VIG_COL[P.max] || "?"}</span></h3>
       ${P.items.length ? `<ul class="vig-list">${P.items.map(it => `<li><span class="vig-chip vig-c${it.max}">${esc(VIG_PHEN[it.id] || "Phénomène " + it.id)}</span>${it.ranges.length ? `<span class="t">${it.ranges.map(r => `${VIG_COL[r.c]} de ${hm(r.a)} à ${hm(r.b)}`).join(" · ")}</span>` : ""}</li>`).join("")}</ul>` : `<p class="note" style="margin:0">Pas de vigilance particulière.</p>`}</div>`).join("")
-      + `<p class="note" style="grid-column:1/-1;margin:0">Source : Météo-France, vigilance en cours (non modifiée). <a href="https://vigilance.meteofrance.fr/fr" target="_blank" rel="noopener">Carte et bulletins officiels ↗</a></p>`;
+      + `<p class="note" style="grid-column:1/-1;margin:0">Source : Météo-France, vigilance en cours (non modifiée). <a href="https://vigilance.meteofrance.fr/fr" target="_blank" rel="noopener">Carte et bulletins officiels ↗</a></p>`
+      + (() => { const I = mfKeyInfo(VIG.key); return I && I.exp && I.exp - Date.now() < 7 * 864e5 ? `<p class="msg err" style="grid-column:1/-1;margin:0">Votre clé Météo-France expire le ${new Date(I.exp).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })} : pensez à en générer une nouvelle, avec une longue durée de validité.</p>` : ""; })();
     // bandeau dans « Où voler » : orange ou rouge, aujourd'hui
     const J = V.periods.find(P => P.ech !== "J1") || V.periods[0];
     if (J && J.max >= 3) { const ph = J.items.filter(it => it.max >= 3).map(it => (VIG_PHEN[it.id] || "").toLowerCase()).join(", ");
@@ -3130,16 +3131,30 @@ async function renderVigi(force) {
       banner.textContent = `Vigilance ${VIG_COL[J.max].toLowerCase()} ${ph} aujourd'hui en ${dep.nom} : ${J.max >= 4 ? "vol fortement déconseillé" : "prudence, les notes ci-dessous ne tiennent pas compte de la vigilance"}.`; }
   } catch (e) {
     console.warn(e); const m = String(e.message || "");
-    body.innerHTML = `<p class="note" style="grid-column:1/-1">${/401|403|invalid|credential/i.test(m) ? "Clé API refusée par Météo-France : vérifiez-la dans Paramètres, et que l'abonnement à l'API « Bulletin Vigilance » est actif." : /hors de France/.test(m) ? "La vigilance Météo-France ne couvre que la France métropolitaine." : `Vigilance indisponible (${esc(m)}).`} <a href="https://vigilance.meteofrance.fr/fr" target="_blank" rel="noopener">Carte officielle ↗</a></p>`;
+    body.innerHTML = `<p class="note" style="grid-column:1/-1">${/401|403|500|900\d\d\d|invalid|credential|authentication/i.test(m) ? `Clé API refusée par Météo-France : ${esc(mfWhy(m) || "vérifiez-la dans Paramètres, et que l'abonnement à l'API « Bulletin Vigilance » est actif")}. <span class="sub">(${esc(m)})</span>` : /hors de France/.test(m) ? "La vigilance Météo-France ne couvre que la France métropolitaine." : `Vigilance indisponible (${esc(m)}).`} <a href="https://vigilance.meteofrance.fr/fr" target="_blank" rel="noopener">Carte officielle ↗</a></p>`;
   }
 }
+// Diagnostic de la clé Météo-France (jeton JWT : date d'expiration et API souscrites, lus localement sans rien envoyer)
+function mfKeyInfo(k) { try { const p = JSON.parse(decodeURIComponent(escape(atob(k.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))))); const apis = (p.subscribedAPIs || []).map(a => a.name || a.context || "").filter(Boolean);
+  return { exp: p.exp ? p.exp * 1000 : null, apis }; } catch { return null; } }
+function mfWhy(err) {
+  const m = String(err || ""), I = VIG.key ? mfKeyInfo(VIG.key) : null, L = [];
+  if (I && I.exp && I.exp < Date.now()) L.push(`votre clé a expiré le ${new Date(I.exp).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })} : générez-en une nouvelle sur le portail Météo-France en choisissant une longue durée de validité`);
+  else if (I && I.apis.length && !I.apis.some(a => /vigilance/i.test(a))) L.push(`la clé n'est pas abonnée à l'API « Bulletin Vigilance » (API souscrites : ${I.apis.join(", ")})`);
+  else if (/900901|invalid credentials/i.test(m)) L.push("clé invalide ou expirée : générez-en une nouvelle sur le portail Météo-France");
+  else if (/900902|missing credentials/i.test(m)) L.push("clé absente");
+  else if (/900908|forbidden/i.test(m)) L.push("la clé n'a pas accès à l'API « Bulletin Vigilance » : vérifiez l'abonnement sur le portail");
+  else if (/900900|unclassified authentication/i.test(m)) L.push("clé mal copiée (format non reconnu) : recopiez-la en entier, sans espace");
+  else if (/900800|429|throttl/i.test(m)) L.push("trop de requêtes : réessayez dans une minute");
+  if (I && I.exp && I.exp >= Date.now() && !L.length) L.push(`la clé est valable jusqu'au ${new Date(I.exp).toLocaleDateString("fr-FR", { dateStyle: "long" })}`);
+  return L.join(" ; "); }
 function vigKeyMsg(t, k) { const m = $("mfKeyMsg"); m.hidden = !t; m.className = "msg " + (k || ""); m.textContent = t || ""; }
 $("mfKey").value = VIG.key;
 $("mfKeySave").addEventListener("click", async () => { VIG.key = $("mfKey").value.trim(); VIG.data = null;
   try { VIG.key ? localStorage.setItem("emagramme-mf-key", VIG.key) : localStorage.removeItem("emagramme-mf-key"); } catch {}
   if (!VIG.key) { vigKeyMsg(""); renderVigi(); return; }
   vigKeyMsg("Vérification de la clé…");
-  try { await vigData(true); vigKeyMsg("Clé valide : la vigilance s'affiche dans l'onglet Situation générale.", "ok"); } catch (e) { vigKeyMsg("Clé refusée ou API inaccessible : " + e.message, "err"); }
+  try { await vigData(true); vigKeyMsg("Clé valide : la vigilance s'affiche dans l'onglet Situation générale.", "ok"); } catch (e) { const w = mfWhy(e.message); vigKeyMsg("Clé refusée : " + (w ? w + ". " : "") + "(" + e.message + ")", "err"); }
   renderVigi(); });
 $("wcKey").value = WC.key;
 function wcKeyMsg(t, k) { const m = $("wcKeyMsg"); m.hidden = !t; m.className = "msg " + (k || ""); m.textContent = t || ""; }
