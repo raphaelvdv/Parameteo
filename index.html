@@ -195,7 +195,7 @@ dialog#rules::backdrop{background:rgba(10,15,30,.45)}
 .why-h{font-family:var(--f-display);font-weight:600;font-size:13px;margin-top:6px}
 .pin.cam{width:22px;height:22px;border-radius:6px;background:var(--ink);color:var(--surface)}
 .cam-live{position:relative;width:100%;aspect-ratio:16/10;margin-top:6px;border-radius:var(--radius-s);overflow:hidden;background:var(--rule)}.cam-live iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
-.cam-img{display:block;width:100%;max-height:220px;object-fit:cover;border-radius:var(--radius-s);margin-top:6px;background:var(--rule)}
+.cam-img{display:block;width:100%;height:auto;object-fit:contain;border-radius:var(--radius-s);margin-top:6px;background:var(--rule)}
 .cams{margin:6px 0;font-size:13.5px}.cams a{color:var(--accent)}
 .pin.land{width:20px;height:20px;border-radius:4px;background:var(--dew);font-size:10px}
 .pin.ctr{width:14px;height:14px;background:var(--ink)}
@@ -1845,6 +1845,7 @@ const RULES = Object.freeze({
   sector: { top: 10, dist: 2.5, speedBad: 15, speedBadPen: 15, speedWarn: 10, speedWarnPen: 8, dirSpread: 90, dirPen: 10,
     rainNear: 0.5, rainPen: 10, lowRange: 50, lowPen: 5, maxPen: 30 },
   trend: { hours: [10, 18], rainHours: [8, 20], flux: [30, 50], rain: [0.5, 3], low: 80, midHigh: 120 },
+  cams: { refresh: 5 },
   clouds: { sat: 1.5, maxBase: 6000, margin: 50, near: 2500, lowBase: 300, partial: 50, veil: 100, invDepth: 400, invLapse: -2, deep: 2500, front: 120,
     thin: 500, cuTol: 400, lowOpen: 40, dayEnd: 19, burnBase: 1500, burnTol: 0.5 }
 });
@@ -2462,16 +2463,17 @@ async function loadWebcams(force) {
 function camFiche(w) {
   const ago = w.upd ? Math.round((Date.now() - w.upd) / 60000) : null;
   return `<div class="pop"><h4>📷 ${esc(w.title)}</h4><div class="meta">Webcam${w.city ? " · " + esc(w.city) : ""}${ago != null ? ` · image ${ago < 60 ? `il y a ${ago} min` : `il y a ${Math.round(ago / 60)} h`}` : ""}</div>
-    ${w.live || w.day ? `<div class="cam-live"><iframe src="${esc(w.live || w.day)}" title="${w.live ? "Webcam en direct" : "Images de la journée"} : ${esc(w.title)}" loading="lazy" allow="autoplay; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
-      <div class="sub" style="margin-top:4px">${w.live ? "● Flux en direct" : "Pas de flux en direct pour cette webcam : images de la journée, jusqu'à la plus récente."}</div>`
-      : w.img ? `<a href="${esc(w.url)}" target="_blank" rel="noopener"><img class="cam-img" src="${esc(w.img)}" alt="Dernière image de la webcam ${esc(w.title)}" loading="lazy"></a>` : ""}
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px"><a href="${esc(w.url)}" target="_blank" rel="noopener">Ouvrir sur Windy ↗</a>${w.live && w.day ? `<a href="${esc(w.day)}" target="_blank" rel="noopener">Accéléré de la journée ↗</a>` : ""}</div>
+    ${w.live ? `<div class="cam-live"><iframe src="${esc(w.live)}" title="Webcam en direct : ${esc(w.title)}" loading="lazy" allow="autoplay; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div><div class="sub" style="margin-top:4px">● Flux en direct</div>`
+      : w.img ? `<a href="${esc(w.url)}" target="_blank" rel="noopener"><img class="cam-img" src="${esc(w.img)}" alt="Dernière image de la webcam ${esc(w.title)}"></a><div class="sub" style="margin-top:4px">Dernière image, actualisée toutes les ${RULES.cams.refresh} min tant que la fiche est ouverte.</div>` : ""}
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px"><a href="${esc(w.url)}" target="_blank" rel="noopener">Ouvrir sur Windy ↗</a>${w.day ? `<a href="${esc(w.day)}" target="_blank" rel="noopener">Accéléré 24 h ↗</a>` : ""}</div>
     <div class="sub" style="margin-top:6px">Webcams fournies par <a href="https://www.windy.com/webcams" target="_blank" rel="noopener">windy.com</a>.</div></div>`; }
 function drawWebcams() {
   if (!SP.map || !WC.list.length) return;
   WC.list.forEach(w => L.marker([w.lat, w.lon], { icon: L.divIcon({ className: "clear", html: '<div class="pin cam" aria-hidden="true"><svg viewBox="0 0 24 24" width="13" height="13"><path d="M4 7h3l2-2.5h6L17 7h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z" fill="currentColor"/><circle cx="12" cy="13" r="3.6" fill="var(--accent)"/></svg></div>', iconSize: [22, 22] }), title: "Webcam : " + w.title, dc: 1, zIndexOffset: -150 })
-    .on("click", async ev => { const m = ev.target; showFiche(m, camFiche(w));
-      if (Date.now() - WC.at > 9 * 60e3) { await loadWebcams(true); const n = WC.list.find(x => x.id === w.id); if (n && SP.selMk === m) showFiche(m, camFiche(n)); } }).addTo(SP.layer));
+    .on("click", async ev => { const m = ev.target; showFiche(m, camFiche(w)); clearInterval(WC.timer);
+      const upd = async force => { await loadWebcams(force); const n = WC.list.find(x => x.id === w.id); if (n && SP.selMk === m && !$("fiche").hidden) showFiche(m, camFiche(n)); else clearInterval(WC.timer); };
+      if (Date.now() - WC.at > 9 * 60e3) await upd(true);
+      if (!w.live) WC.timer = setInterval(() => upd(true), RULES.cams.refresh * 60e3); }).addTo(SP.layer));
 }
 function drawBeacons() {
   if (!SP.map) return;
