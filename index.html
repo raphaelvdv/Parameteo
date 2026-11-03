@@ -170,6 +170,7 @@ dt[title],.stat .k[title],th[title],.tip{cursor:help;text-decoration:underline d
 #spotTbl .nm{font-family:var(--f-body);font-weight:600;white-space:normal;min-width:140px}
 #spotTbl .sub{font-family:var(--f-body);font-size:12px;color:var(--muted);white-space:normal}
 .score{display:inline-grid;place-items:center;min-width:36px;height:26px;padding:0 6px;border-radius:13px;font-family:var(--f-mono);font-weight:600;color:var(--surface)}
+.score.sm{min-width:0;height:18px;font-size:11px;padding:0 6px;border-radius:9px}
 .score.good{background:var(--sc-good-bg);color:var(--sc-good)}.score.warn{background:var(--sc-warn-bg);color:var(--sc-warn)}.score.bad{background:var(--sc-bad-bg);color:var(--sc-bad)}.score.mute{background:var(--muted)}
 .pin{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:var(--surface);font:600 12px var(--f-mono);border:2px solid var(--surface);box-shadow:0 1px 4px rgba(0,0,0,.45)}
 .pin.good{background:var(--good)}.pin.warn{background:var(--warn)}.pin.bad{background:var(--bad)}.pin.mute{background:var(--muted)}
@@ -1890,6 +1891,8 @@ const RULES = Object.freeze({
     { id: "urban", name: "zone bâtie", f: 1.05, t: [["landuse", "residential"], ["landuse", "industrial"], ["landuse", "commercial"], ["landuse", "retail"]] }],
   sector: { top: 10, dist: 2.5, speedBad: 15, speedBadPen: 15, speedWarn: 10, speedWarnPen: 8, dirSpread: 90, dirPen: 10,
     rainNear: 0.5, rainPen: 10, lowRange: 50, lowPen: 5, maxPen: 30 },
+  cross: { hours: [10, 18], decoMin: 40, hMin: 500, rain: 0.2, hFull: 5, heightFull: 1500, excFull: 1.5, wind: [15, 40], downMin: 10,
+    pts: { hours: 30, height: 30, exc: 20, wind: 20 }, stormPen: 20, lidPen: 15, v0: 20, tail: 0.5, useHours: 0.7, lidDist: 0.5 },
   trend: { hours: [10, 18], rainHours: [8, 20], flux: [30, 50], rain: [0.5, 3], low: 80, midHigh: 120 },
   cams: { refresh: 5 },
   calib: { siteKm: 1, radius: 5, maxOffset: 300, ok: 150, warn: 400, minN: 10, recentDays: 85 },
@@ -2275,6 +2278,7 @@ function popupHtml(t) { const r = t.res, sc = t.sc, nl = nearestLanding(t);
     <div class="why-h">Décollage <span class="score ${sc.dc}">${sc.D}</span></div>${li(sc.wd)}
     ${cmpHtml(t)}
     <div class="why-h">Thermique en local <span class="score ${sc.tc}">${sc.T}</span></div>${li(sc.wt)}
+    ${t.cross ? `<div class="why-h">Cross (journée) <span class="score ${t.cross.cls}">${t.cross.S}</span></div>${t.cross.hours ? `<div class="meta">Distance indicative ≈ ${t.cross.km} km, ${esc(t.cross.route)}. À confirmer sur place : ce potentiel ne remplace ni l'analyse du parcours ni les espaces aériens.</div>` : ""}${li(t.cross.why)}` : ""}
     ${cloudHtml(r)}
     <div class="meta">${nl ? `Atterro le plus proche : ${esc(nl.l.name)} (${fr(nl.d)} km${nl.l.alt != null && t.alt != null ? `, ${Math.round(t.alt - nl.l.alt)} m de dénivelé` : ""})` : "Pas d'atterrissage référencé à moins de 8 km"}</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button type="button" class="sm" data-spot="${esc(t.id)}">Voir le sondage</button><a href="${esc(t.url)}" target="_blank" rel="noopener">${t.src === "FFVL" ? "Rechercher le site sur ffvl.fr" : "Fiche " + esc(t.src)} ↗</a></div></div>`; }
@@ -2284,7 +2288,7 @@ function renderSpots() {
   tb.innerHTML = list.length ? list.map(t => { const r = t.res, w = r.wind, sc = t.sc;
     const worst = [...sc.wd, ...sc.wt].find(x => x.cls === "bad") || [...sc.wd, ...sc.wt].find(x => x.cls === "warn");
     return `<tr data-row="${esc(t.id)}"><td class="r"><span class="score ${sc.dc}">${sc.D}</span></td><td class="r"><span class="score ${sc.tc}">${sc.T}</span></td>
-      <td><div class="nm">${esc(t.name)}</div><div class="sub">${t.alt != null ? Math.round(t.alt) + " m" : "alt. ?"} · ${fr(t.dist)} km · ${t.ori.length ? [...new Set(t.ori.map(abbr))].join(", ") : "orientation ?"}${r.cloud && r.cloud.kind === "above" ? ' · <b style="color:var(--hi)">☀ au-dessus des nuages</b>' : r.cloud && r.cloud.kind === "in" ? " · ☁ dans les nuages" : ""}${t.cams && t.cams.length ? ' · <span title="Webcam citée par la FFVL">📷</span>' : ""}</div><div class="why1" title="${esc(worst ? worst.t : "")}">${t.ffvl && t.ffvl.st !== "actif" ? `<b style="color:var(--${(ST_FFVL[t.ffvl.st] || ["warn"])[0]})">${esc((ST_FFVL[t.ffvl.st] || [0, t.ffvl.st])[1])}</b> · ` : ""}${esc(worst ? worst.t : "Conditions favorables")}</div></td>
+      <td><div class="nm">${esc(t.name)}</div><div class="sub">${t.alt != null ? Math.round(t.alt) + " m" : "alt. ?"} · ${fr(t.dist)} km · ${t.ori.length ? [...new Set(t.ori.map(abbr))].join(", ") : "orientation ?"}${r.cloud && r.cloud.kind === "above" ? ' · <b style="color:var(--hi)">☀ au-dessus des nuages</b>' : r.cloud && r.cloud.kind === "in" ? " · ☁ dans les nuages" : ""}${t.cams && t.cams.length ? ' · <span title="Webcam citée par la FFVL">📷</span>' : ""}${t.cross && t.cross.S >= RULES.cls.warn ? ` · <span class="score sm ${t.cross.cls}" title="Potentiel de cross de la journée">XC ${t.cross.S}</span>` : ""}</div><div class="why1" title="${esc(worst ? worst.t : "")}">${t.ffvl && t.ffvl.st !== "actif" ? `<b style="color:var(--${(ST_FFVL[t.ffvl.st] || ["warn"])[0]})">${esc((ST_FFVL[t.ffvl.st] || [0, t.ffvl.st])[1])}</b> · ` : ""}${esc(worst ? worst.t : "Conditions favorables")}</div></td>
       <td><div>${w ? `${abbr(w.dir)} ${Math.round(w.spd * 1.852)}` : "—"}</div><div style="margin-top:4px">${t.obs ? (t.cmp && t.cmp.active ? `<span class="pill ${t.cmp.v[0]}" title="${esc(t.cmp.v[1] + " · " + t.obs.name)}">${abbr(t.obs.dir)} ${Math.round(t.obs.avg)}/${Math.round(t.obs.max)}</span>` : `<span class="sub" title="Mesure actuelle, comparaison inactive à cette heure">${abbr(t.obs.dir)} ${Math.round(t.obs.avg)}/${Math.round(t.obs.max)}</span>`) : ""}</div></td><td class="r">${r.ceilZ !== null ? Math.round(r.ceilZ) : "—"}</td></tr>`; }).join("")
     : `<tr><td colspan="5" class="sub">Aucun décollage noté.</td></tr>`;
   $("sideN").textContent = list.length ? `${list.length} décos` : "";
@@ -2307,10 +2311,38 @@ function renderSpots() {
     fit(); setTimeout(() => { fit(); declutter(); }, 300); SP.fitted = true; }
   else declutter();
 }
+const versDir = d => { const n = dirName(d); return /^[aeiou]/.test(n) ? "vers l'" + n : "vers le " + n; };
+// Potentiel de cross du jour (indicatif) : fenêtre de vol, hauteur et vigueur des thermiques, vent dans la couche
+function crossFor(t, D, i0) {
+  const Q = RULES.cross, day = D.times[i0] ? D.times[i0].slice(0, 10) : null; if (!day) return null;
+  const key = `${t.id}|${day}`; SP.crossC = SP.crossC || {}; if (SP.crossC[key] !== undefined) return SP.crossC[key];
+  const H = []; D.times.forEach((tm, i) => { const h = +tm.slice(11, 13); if (tm.slice(0, 10) === day && h >= Q.hours[0] && h <= Q.hours[1]) H.push(i); });
+  const ok = []; let storm = 0;
+  for (const i of H) { let r, sc; try { r = analyzeSpot(t, D, i); sc = scoreSpot(t, r, null); } catch { continue; }
+    const a = r.a; if (a.lfcI >= 0 && a.cape >= RULES.deco.storm.capeOver && a.cin > RULES.deco.storm.cinOver) storm++;
+    const h = r.ceilZ != null ? r.ceilZ - r.z : 0;
+    if (sc.D >= Q.decoMin && h >= Q.hMin && !(r.rain >= Q.rain)) { const w = windAtAltD(D, i, (r.z + r.ceilZ) / 2); ok.push({ i, h, exc: r.exc ?? 0, w, lid: r.diag === "lid", top: r.ceilZ }); } }
+  if (!ok.length) return (SP.crossC[key] = { S: 0, cls: "bad", hours: 0, why: [{ t: `Pas de créneau favorable entre ${Q.hours[0]} h et ${Q.hours[1]} h (déco ≥ ${Q.decoMin} et plafond ≥ +${Q.hMin} m)`, cls: "bad" }] });
+  const n = ok.length, mean = f => ok.reduce((s, o) => s + f(o), 0) / n, hM = mean(o => o.h), eM = mean(o => o.exc);
+  let u = 0, v = 0, ws = 0; ok.forEach(o => { if (!o.w) return; const r = o.w.dir * Math.PI / 180; u += o.w.spd * Math.sin(r); v += o.w.spd * Math.cos(r); ws += o.w.spd; });
+  const wM = ws / n, wDir = (Math.atan2(u, v) * 180 / Math.PI + 360) % 360, steady = ws > 0 && Math.hypot(u, v) / ws >= 0.6;
+  const fWind = wM <= Q.wind[0] ? 1 : wM >= Q.wind[1] ? 0 : 1 - (wM - Q.wind[0]) / (Q.wind[1] - Q.wind[0]);
+  let S = clamp01(n / Q.hFull) * Q.pts.hours + clamp01(hM / Q.heightFull) * Q.pts.height + clamp01(eM / Q.excFull) * Q.pts.exc + fWind * Q.pts.wind;
+  const why = [{ t: `Créneau favorable : ${n} h (${+D.times[ok[0].i].slice(11, 13)} h – ${+D.times[ok[n - 1].i].slice(11, 13) + 1} h)`, cls: n >= Q.hFull ? "good" : n >= 2 ? "warn" : "bad" },
+    { t: `Plafond exploitable moyen +${zr(hM)} au-dessus du déco (max ${zr(Math.max(...ok.map(o => o.top)))})`, cls: hM >= 1000 ? "good" : hM >= 600 ? "warn" : "bad" },
+    { t: eM >= 1 ? "Thermiques francs" : eM >= 0.5 ? "Thermiques modérés" : "Thermiques faibles", cls: eM >= 1 ? "good" : eM >= 0.5 ? "warn" : "bad" },
+    { t: `Vent dans la couche : ${Math.round(wM)} km/h${steady && wM >= Q.downMin ? ` ${deDir(wDir)}` : ", sans direction dominante"}`, cls: wM < Q.wind[0] ? "good" : wM < Q.wind[1] ? "warn" : "bad" }];
+  if (storm) { S -= Q.stormPen; why.push({ t: `Surdéveloppement ou orage possible (${storm} h)`, cls: "bad" }); }
+  const lid = ok.filter(o => o.lid).length / n >= 0.5; if (lid) { S -= Q.lidPen; why.push({ t: "Couvercle sous les crêtes : cross limité au relief, transitions de vallée difficiles", cls: "warn" }); }
+  S = Math.round(Math.max(0, Math.min(100, S)));
+  const tail = steady && wM >= Q.downMin ? Q.tail * wM : 0, speed = (Q.v0 + tail) * clamp01(hM / Q.heightFull) * clamp01(eM / Q.excFull) * (lid ? Q.lidDist : 1);
+  const km = Math.round(n * Q.useHours * speed / 5) * 5;
+  const route = steady && wM >= Q.downMin ? `${versDir((wDir + 180) % 360)} (sous le vent), de préférence le long des crêtes au soleil` : "pas de vent dominant : aller-retour ou triangle le long du relief";
+  return (SP.crossC[key] = { S, cls: cls100(S), hours: n, km, route, why }); }
 function scoreAll() {
   const i = SP.hour;
   SP.takeoffs.forEach((t, k) => { t.res = null; t.sc = null; const d = SP.data[k]; if (!d) return;
-    try { t.res = analyzeSpot(t, d, i); t.obs = beaconFor(t, i); t.sc = scoreSpot(t, t.res, sectorEval(t, t.res, d, i)); t.cmp = compareBeacon(t, t.res, t.obs, i); } catch (e) { console.warn("Site non noté", t.name, e); } });
+    try { t.res = analyzeSpot(t, d, i); t.obs = beaconFor(t, i); t.sc = scoreSpot(t, t.res, sectorEval(t, t.res, d, i)); t.cmp = compareBeacon(t, t.res, t.obs, i); t.cross = t.sc ? crossFor(t, d, i) : null; } catch (e) { console.warn("Site non noté", t.name, e); } });
   renderSpots();
   const best = SP.takeoffs.filter(t => t.sc).sort((a, b) => b.sc.rank - a.sc.rank)[0];
   spotMsg(`${SP.posNote ? SP.posNote + " " : ""}${SP.takeoffs.filter(t => t.sc).length} décollages notés, ${SP.landings.length} atterrissage${SP.landings.length > 1 ? "s" : ""}. ${best ? `Meilleur : ${best.name} (déco ${best.sc.D}/100, thermique ${best.sc.T}/100).` : ""} ${SP.balTxt || ""}${SP.srcNote ? " " + SP.srcNote + "." : ""} ${SP.beacons.length ? (hoursFromNow(i) <= RULES.cmp.window ? "Comparaison avec les balises active." : `Comparaison avec les balises : disponible à moins de ${RULES.cmp.window} h de l'heure choisie.`) : ""} ${SP.secTxt || ""} ${SP.timing || ""}`, "ok");
@@ -2357,7 +2389,7 @@ async function searchSpots() {
     SP.times = (arr[0] && arr[0].hourly && arr[0].hourly.time) || [];
     const sel = $("spotHour"); sel.innerHTML = SP.times.map((t, k) => `<option value="${k}">${new Date(t).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" })} ${t.slice(11, 16)}</option>`).join("");
     const today = new Date().toISOString().slice(0, 10); let idx = SP.times.findIndex(t => t.slice(11, 13) === "14" && t.slice(0, 10) >= today); if (idx < 0) idx = 0;
-    SP.hour = idx; sel.value = idx; SP.nb = {}; SP.secTxt = "Cohérence du secteur en cours de calcul…"; scoreAll();
+    SP.hour = idx; sel.value = idx; SP.nb = {}; SP.crossC = {}; SP.secTxt = "Cohérence du secteur en cours de calcul…"; scoreAll();
     try { await loadSector(); scoreAll(); } catch (e) { console.warn("Secteur", e); SP.secTxt = "Cohérence du secteur indisponible."; scoreAll(); }
   } catch (e) { console.warn(e); spotMsg("Échec : " + (e.message || "erreur réseau") + ".", "err"); }
   finally { $("spotsBtn").disabled = false; SP.noCache = false; }
@@ -2763,6 +2795,12 @@ function rulesHtml() {
     [`Épaisseur ≥ ${RULES.clouds.deep} m, ou nuages moyens + hauts ≥ ${RULES.clouds.front} % avec pluie`, "couverture de perturbation"], [`Base à ±${RULES.clouds.cuTol} m du niveau de condensation des thermiques`, "étalement de cumulus"],
     [`Ouverture : premier horaire (jusqu'à ${RULES.clouds.dayEnd} h) où le déco sort de la couche, ou nuages bas < ${RULES.clouds.lowOpen} %`, "heure annoncée"],
     [`Dissipation par le réchauffement (stratus dont la base est à moins de ${RULES.clouds.burnBase} m au-dessus du sol du modèle)`, "température en plaine nécessaire pour que les thermiques traversent la couche et son inversion, comparée au maximum prévu"]])}
+  <h3>Potentiel de cross (sur 100, par journée)</h3>
+  <p>Indicatif, calculé pour chaque déco sur les heures de ${RULES.cross.hours[0]} h à ${RULES.cross.hours[1]} h du jour choisi. Une heure est « favorable » si la note décollage est d'au moins ${RULES.cross.decoMin}, le plafond exploitable d'au moins +${RULES.cross.hMin} m et sans pluie.</p>
+  ${tbl([[`Durée du créneau favorable (maximum à ${RULES.cross.hFull} h)`, `jusqu'à +${RULES.cross.pts.hours}`], [`Plafond exploitable moyen au-dessus du déco (maximum à +${RULES.cross.heightFull} m)`, `jusqu'à +${RULES.cross.pts.height}`],
+    [`Vigueur moyenne des thermiques (maximum à ${fr(RULES.cross.excFull)} °C)`, `jusqu'à +${RULES.cross.pts.exc}`], [`Vent dans la couche : plein jusqu'à ${RULES.cross.wind[0]} km/h, nul à ${RULES.cross.wind[1]} km/h`, `jusqu'à +${RULES.cross.pts.wind}`],
+    ["Surdéveloppement ou orage possible", `−${RULES.cross.stormPen}`], ["Couvercle sous les crêtes la majeure partie du créneau", `−${RULES.cross.lidPen}`],
+    [`Distance indicative`, `${Math.round(RULES.cross.useHours * 100)} % du créneau × (${RULES.cross.v0} km/h + ${fr(RULES.cross.tail)} × vent arrière si vent régulier ≥ ${RULES.cross.downMin} km/h) × hauteur × vigueur, × ${fr(RULES.cross.lidDist)} sous un couvercle`], ["Direction conseillée", "sous le vent si le vent est régulier, sinon aller-retour ou triangle le long du relief"]])}
   <h3>Tendance 5 jours (onglet Situation générale)</h3>
   <p>Repère indicatif par journée, calculé sur les heures de vol (${RULES.trend.hours[0]} h – ${RULES.trend.hours[1]} h). Il ne modifie pas les notes des sites.</p>
   ${tbl([[`Pluie de ${fr(RULES.trend.rain[1])} mm ou plus (${RULES.trend.rainHours[0]} h – ${RULES.trend.rainHours[1]} h) ou flux à 700 hPa de ${RULES.trend.flux[1]} km/h ou plus`, "Défavorable"],
