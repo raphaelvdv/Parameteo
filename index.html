@@ -197,6 +197,12 @@ dialog#rules::backdrop{background:rgba(10,15,30,.45)}
 .ffvl .r{color:var(--muted)}
 .why-h{font-family:var(--f-display);font-weight:600;font-size:13px;margin-top:6px}
 .pin.cam{width:22px;height:22px;border-radius:6px;background:var(--ink);color:var(--surface)}
+.btnlike{display:inline-flex;align-items:center;height:38px;padding:0 14px;border-radius:var(--radius-s);background:var(--accent);color:var(--accent-ink);font-family:var(--f-display);font-weight:600;cursor:pointer}
+.btnlike:focus-within,#volsFile:focus-visible+.btnlike{outline:2px solid var(--hi)}
+.vols-sum{margin:6px 0 10px;font-size:14.5px}
+.vols-t th,.vols-t td{vertical-align:top;text-align:left;font-family:var(--f-body)}.vols-t th.r,.vols-t td.r{text-align:right;font-family:var(--f-mono)}.vols-t .nm{font-weight:600}
+@media (max-width:600px){.vols-t th:nth-child(6),.vols-t td:nth-child(6){display:none}.vols-t{font-size:13px}.vols-t th,.vols-t td{padding:5px 4px}.vols-t .sub{font-size:11px}.vols-t td:nth-child(2){min-width:0;word-break:break-word}.vols-t{table-layout:fixed;width:100%}.vols-t th:nth-child(1){width:62px}.vols-t th:nth-child(3),.vols-t th:nth-child(4){width:58px}.vols-t th:nth-child(5){width:66px}}
+.vols-t th,.vols-t td{white-space:normal}
 .cam-live{position:relative;width:100%;aspect-ratio:16/10;margin-top:6px;border-radius:var(--radius-s);overflow:hidden;background:var(--rule)}.cam-live iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .cam-img{display:block;width:100%;height:auto;object-fit:contain;border-radius:var(--radius-s);margin-top:6px;background:var(--rule)}
 .cams{margin:6px 0;font-size:13.5px}.cams a{color:var(--accent)}
@@ -627,6 +633,16 @@ footer{padding:4px 2px 0}
       </section>
     </aside>
   </div>
+
+  <section class="panel" id="vols" aria-labelledby="vols-h">
+    <div class="sec-h"><div><div class="kick">Mes vols</div><h2 id="vols-h" class="situ-t">Plafond prévu / plafond atteint</h2></div></div>
+    <p class="note">Importez vos traces <b>IGC</b> (XContest : bouton IGC de chaque vol, connecté à votre compte ; ou depuis votre instrument, Syride, XCTrack…). Pour chaque vol, le site retrouve le déco FFVL, recalcule le plafond qu'il aurait annoncé ce jour-là avec les archives de prévision AROME, et le compare au plafond atteint près du déco (à moins de <span id="volsR">5</span> km). Les traces restent dans votre navigateur : seuls les résultats sont gardés.</p>
+    <div class="row" style="align-items:center;margin:8px 0"><input id="volsFile" type="file" accept=".igc,.IGC" multiple class="sr"><label class="btnlike" for="volsFile">Importer des traces IGC</label>
+      <button type="button" class="soft sm" id="volsCopy" hidden>Copier le résumé</button><button type="button" class="quiet sm" id="volsClear" hidden>Tout effacer</button></div>
+    <p id="volsMsg" class="msg" hidden></p>
+    <p id="volsSum" class="vols-sum"></p>
+    <div class="tablewrap"><table id="volsTbl" class="vols-t"><thead><tr><th>Date</th><th>Déco</th><th class="r">Atteint</th><th class="r">Prévu</th><th class="r">Écart</th><th class="r">Chauffe</th></tr></thead><tbody></tbody></table></div>
+  </section>
 
   <section class="panel" id="gloss" aria-labelledby="gloss-h">
     <h2 id="gloss-h">Lexique des symboles</h2>
@@ -1876,6 +1892,7 @@ const RULES = Object.freeze({
     rainNear: 0.5, rainPen: 10, lowRange: 50, lowPen: 5, maxPen: 30 },
   trend: { hours: [10, 18], rainHours: [8, 20], flux: [30, 50], rain: [0.5, 3], low: 80, midHigh: 120 },
   cams: { refresh: 5 },
+  calib: { siteKm: 1, radius: 5, maxOffset: 300, ok: 150, warn: 400, minN: 10, recentDays: 85 },
   clouds: { sat: 1.5, maxBase: 6000, margin: 50, near: 2500, lowBase: 300, partial: 50, veil: 100, invDepth: 400, invLapse: -2, deep: 2500, front: 120,
     thin: 500, cuTol: 400, lowOpen: 40, dayEnd: 19, burnBase: 1500, burnTol: 0.5 }
 });
@@ -2594,6 +2611,86 @@ $("balBtn").addEventListener("click", async () => { if (!SP.center) { spotMsg("L
   spotMsg("Lecture des balises…"); const t = await loadBeacons(); if (SP.data.length) scoreAll(); spotMsg(t || "Balises désactivées.", "ok"); });
 $("balOn").addEventListener("change", () => { if (!$("balOn").checked) { SP.beacons = []; if (SP.data.length) scoreAll(); } });
 
+// ---------- Mes vols : plafond prévu / plafond atteint (traces IGC, calage des règles) ----------
+const VOLS_KEY = "emagramme-vols";
+function volsLoad() { try { return JSON.parse(localStorage.getItem(VOLS_KEY) || "[]") || []; } catch { return []; } }
+function volsSave(v) { try { localStorage.setItem(VOLS_KEY, JSON.stringify(v)); } catch { } }
+// Lecture d'un fichier IGC : date (HFDTE) et points B (heure UTC, position, altitudes pression et GNSS)
+function parseIGC(txt) {
+  const L = txt.split(/\r?\n/), dm = txt.match(/HFDTE(?:DATE:)?(\d{2})(\d{2})(\d{2})/);
+  if (!dm) throw new Error("date absente (ligne HFDTE)");
+  const date = `20${dm[3]}-${dm[2]}-${dm[1]}`, fx = []; let day = 0, last = -1;
+  for (const l of L) { const m = l.match(/^B(\d{2})(\d{2})(\d{2})(\d{2})(\d{5})([NS])(\d{3})(\d{5})([EW])([AV])([-\d]\d{4})([-\d]\d{4})/); if (!m) continue;
+    let t = +m[1] * 3600 + +m[2] * 60 + +m[3]; if (t < last - 3600) day++; last = t; t += day * 86400;
+    const lat = (+m[4] + +m[5] / 60000) * (m[6] === "S" ? -1 : 1), lon = (+m[7] + +m[8] / 60000) * (m[9] === "W" ? -1 : 1), pa = +m[11], ga = +m[12];
+    if (m[10] !== "A" && !ga) continue; fx.push({ t, lat, lon, z: ga > 0 ? ga : pa }); }
+  if (fx.length < 20) throw new Error("trop peu de points GPS");
+  // lissage (médiane glissante sur 5 points) contre les sauts d'altitude GPS
+  const z = fx.map(f => f.z); fx.forEach((f, k) => { const w = z.slice(Math.max(0, k - 2), k + 3).sort((a, b) => a - b); f.zs = w[Math.floor(w.length / 2)]; });
+  return { date, fx };
+}
+async function analyzeFlight(name, txt) {
+  const Q = RULES.calib, F = parseIGC(txt), f0 = F.fx[0];
+  const ground = F.fx.slice(0, 8).map(f => f.zs).sort((a, b) => a - b)[4] ?? f0.zs;
+  // déco FFVL le plus proche du premier point
+  let site = null;
+  try { const T = await ffvlTerrains(); site = ffvlSitesAround(T.list, f0.lat, f0.lon, Q.siteKm).filter(s => s.kind === "takeoff").map(s => ({ ...s, ori: [...s.ori], d: distKm(f0.lat, f0.lon, s.lat, s.lon) })).sort((a, b) => a.d - b.d)[0] || null; } catch (e) { console.warn(e); }
+  if (!site) site = { id: "vol", name: "Point de décollage", lat: f0.lat, lon: f0.lon, alt: null, ori: [], nok: [] };
+  await Promise.all([loadTerrain([site]).catch(() => { }), loadGround([site]).catch(() => { })]);
+  const ref = site.alt ?? (site.terrain && isFinite(site.terrain.z) ? site.terrain.z : null);
+  const off = ref != null ? Math.max(-Q.maxOffset, Math.min(Q.maxOffset, ref - ground)) : 0;
+  if (site.alt == null) site.alt = ref ?? ground + off;
+  // plafond atteint près du déco (rayon RULES.calib.radius) et plafond du vol entier
+  const loc = F.fx.filter(f => distKm(site.lat, site.lon, f.lat, f.lon) <= Q.radius), top = (loc.length ? loc : F.fx).reduce((a, b) => b.zs > a.zs ? b : a);
+  const topAll = F.fx.reduce((a, b) => b.zs > a.zs ? b : a);
+  // prévision AROME du jour du vol (archives Open-Meteo) au déco
+  const ageDays = (Date.now() - Date.parse(F.date)) / 864e5;
+  let url = spotUrl([{ lat: site.lat, lon: site.lon }], true).replace("forecast_days=2", `start_date=${F.date}&end_date=${F.date}`);
+  if (ageDays > Q.recentDays) url = url.replace("https://api.open-meteo.com/v1/forecast", "https://historical-forecast-api.open-meteo.com/v1/forecast");
+  let d = await omGetC(url, 30 * 864e5); if (!d) { d = await getJSON(url, 40000); if (d && d.hourly) omPutC(url, d); }
+  const D = datasetOf(Array.isArray(d) ? d[0] : d), offs = D.d.utc_offset_seconds || 0;
+  const hl = Math.round(((top.t + offs) / 3600)) % 24, i = D.times.findIndex(t => t.slice(0, 10) === F.date && +t.slice(11, 13) === hl);
+  if (i < 0) throw new Error("heure du vol absente de la prévision");
+  const r = analyzeSpot(site, D, i);
+  return { id: `${F.date}-${Math.round(f0.lat * 1e4)}-${Math.round(f0.lon * 1e4)}-${F.fx.length}`, file: name, date: F.date, hour: D.times[i].slice(11, 16), site: site.name, siteAlt: Math.round(site.alt),
+    off: Math.round(off), top: Math.round(top.zs + off), topAll: Math.round(topAll.zs + off), exp: r.ceilZ != null ? Math.round(r.ceilZ) : null, nul: r.ceil0Z != null ? Math.round(r.ceil0Z) : null,
+    dT: r.sun ? r.sun.dT : null, prim: r.prim, model: D.model, month: +F.date.slice(5, 7) };
+}
+function volsRender() {
+  $("volsR").textContent = RULES.calib.radius;
+  const V = volsLoad().sort((a, b) => b.date.localeCompare(a.date)), Q = RULES.calib, tb = $("volsTbl").tBodies[0];
+  const cls = e => e == null ? "mute" : Math.abs(e) <= Q.ok ? "good" : Math.abs(e) <= Q.warn ? "warn" : "bad", sg = e => e == null ? "—" : `${e > 0 ? "+" : e < 0 ? "−" : ""}${Math.abs(e)} m`;
+  tb.innerHTML = V.length ? V.map(v => { const e = v.exp != null ? v.top - v.exp : null, e0 = v.nul != null ? v.top - v.nul : null;
+    return `<tr><td>${new Date(v.date + "T12:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "2-digit" })}<div class="sub">${esc(v.hour)}</div></td>
+      <td><div class="nm">${esc(v.site)}</div><div class="sub">${v.siteAlt} m${v.off ? ` · altitude recalée de ${v.off > 0 ? "+" : ""}${v.off} m` : ""}</div></td>
+      <td class="r">${v.top}<div class="sub">vol : ${v.topAll}</div></td><td class="r">${v.exp ?? "—"}<div class="sub">nul : ${v.nul ?? "—"}</div></td>
+      <td class="r"><span class="pill ${cls(e)}">${sg(e)}</span></td><td class="r">${v.dT != null ? "+" + fr(v.dT) + " °C" : "—"}<div class="sub">${esc(v.prim)}</div></td></tr>`; }).join("")
+    : `<tr><td colspan="6" class="sub">Aucun vol importé.</td></tr>`;
+  const E = V.filter(v => v.exp != null).map(v => v.top - v.exp), E0 = V.filter(v => v.nul != null).map(v => v.top - v.nul);
+  const med = a => { const s = [...a].sort((x, y) => x - y); return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null; };
+  const mE = med(E), mE0 = med(E0);
+  $("volsSum").innerHTML = E.length ? `<b>${E.length} vol${E.length > 1 ? "s" : ""}</b> · écart médian plafond atteint − plafond exploitable prévu : <b>${sg(Math.round(mE))}</b> · par rapport au thermique nul : ${sg(Math.round(mE0))}. `
+    + (E.length < Q.minN ? `Il faut au moins ${Q.minN} vols pour conclure.` : Math.abs(mE) <= Q.ok ? "Les plafonds prévus sont cohérents avec vos vols." : mE < 0 ? "Le site <b>surestime</b> vos plafonds : la chauffe ou le facteur de saison sont trop forts." : "Le site <b>sous-estime</b> vos plafonds : la chauffe ou le seuil de plafond exploitable sont trop prudents.")
+    : "Importez des traces pour comparer.";
+  $("volsCopy").hidden = $("volsClear").hidden = !V.length;
+}
+$("volsFile").addEventListener("change", async e => {
+  const files = [...e.target.files]; e.target.value = ""; if (!files.length) return;
+  const m = $("volsMsg"), V = volsLoad(), errs = []; let n = 0; m.hidden = false; m.className = "msg";
+  for (const f of files) { m.textContent = `Analyse de ${f.name} (${n + errs.length + 1}/${files.length})…`;
+    try { const r = await analyzeFlight(f.name, await f.text()); const k = V.findIndex(v => v.id === r.id); if (k >= 0) V[k] = r; else V.push(r); n++; volsSave(V); volsRender(); }
+    catch (err) { console.warn(err); errs.push(`${f.name} : ${err.message}`); } }
+  m.className = "msg " + (errs.length ? "err" : "ok"); m.textContent = `${n} vol${n > 1 ? "s" : ""} analysé${n > 1 ? "s" : ""}.${errs.length ? " Échecs : " + errs.join(" ; ") : ""}`;
+});
+$("volsClear").addEventListener("click", () => { volsSave([]); volsRender(); $("volsMsg").hidden = true; });
+$("volsCopy").addEventListener("click", async () => {
+  const V = volsLoad(), t = ["date;heure;site;alt_deco;plafond_atteint_local;plafond_vol;plafond_exploitable_prevu;thermique_nul_prevu;chauffe;plafond;recalage",
+    ...V.map(v => [v.date, v.hour, v.site, v.siteAlt, v.top, v.topAll, v.exp ?? "", v.nul ?? "", v.dT ?? "", v.prim, v.off].join(";"))].join("\n");
+  try { await navigator.clipboard.writeText(t); $("volsMsg").hidden = false; $("volsMsg").className = "msg ok"; $("volsMsg").textContent = "Résumé copié (sans les traces) : collez-le dans la conversation."; }
+  catch { $("volsMsg").hidden = false; $("volsMsg").className = "msg err"; $("volsMsg").textContent = "Copie impossible dans ce navigateur."; }
+});
+volsRender();
+
 // ---------- Paramètres (lecture seule) ----------
 function rulesHtml() {
   const R = RULES.deco, A = R.axis, Q = RULES.therm, C = RULES.cmp;
@@ -2671,6 +2768,10 @@ function rulesHtml() {
   ${tbl([[`Pluie de ${fr(RULES.trend.rain[1])} mm ou plus (${RULES.trend.rainHours[0]} h – ${RULES.trend.rainHours[1]} h) ou flux à 700 hPa de ${RULES.trend.flux[1]} km/h ou plus`, "Défavorable"],
     [`Pluie de ${fr(RULES.trend.rain[0])} mm ou plus, flux à 700 hPa de ${RULES.trend.flux[0]} km/h ou plus, nuages bas ≥ ${RULES.trend.low} % ou nuages moyens + hauts ≥ ${RULES.trend.midHigh} %`, "À surveiller"],
     ["Sinon", "Favorable a priori"]])}
+  <h3>Mes vols : prévu / atteint</h3>
+  ${tbl([[`Déco retenu : déco FFVL à moins de ${RULES.calib.siteKm} km du premier point de la trace`, "sinon le point de départ"], [`Altitude de la trace recalée sur celle du déco (écart limité à ${RULES.calib.maxOffset} m)`, "corrige GPS et baromètre"],
+    [`Plafond atteint : altitude maximale (lissée) à moins de ${RULES.calib.radius} km du déco`, "comparé au plafond prévu à l'heure de ce maximum"], [`Écart ≤ ${RULES.calib.ok} m / ≤ ${RULES.calib.warn} m`, "vert / orange (sinon rouge)"],
+    [`Vols de plus de ${RULES.calib.recentDays} jours`, "archives Open-Meteo (historical-forecast-api)"], [`Conclusion sur l'écart médian`, `à partir de ${RULES.calib.minN} vols`]])}
   <h3>Données et mises à jour</h3>
   <p>Open-Meteo est gratuit sans clé, avec un quota par connexion Internet (environ 600 appels par minute, 5 000 par heure, 10 000 par jour). Une recherche de sites compte pour un appel par déco (davantage avec beaucoup de variables), la carte des fronts pour ~300. Les prévisions déjà téléchargées sont réutilisées pendant 1 h. Consommation estimée aujourd'hui dans ce navigateur : <b>${omUseToday().toLocaleString("fr-FR")}</b> appels.</p>
   ${tbl([["Prévision", "Météo-France AROME / ARPEGE via Open-Meteo, gardée 1 h par point"], ["Carte des fronts", "gardée 6 h"], ["Terrains FFVL (data.gouv.fr)", "gardés 24 h"], ["Terrain IGN RGE ALTI (data.geopf.fr)", "gardé dans le navigateur"], ["Liste des balises FFVL", "gardée 24 h"],
