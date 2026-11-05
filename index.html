@@ -2261,7 +2261,7 @@ function initMap() {
   const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { maxZoom: 17, subdomains: "abc", attribution: "© OpenStreetMap, SRTM | © OpenTopoMap (CC-BY-SA)" });
   const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" });
   const sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 18, attribution: "© Esri" });
-  topo.addTo(SP.map); L.control.layers({ "Topographique": topo, "OpenStreetMap": osm, "Satellite": sat }).addTo(SP.map);
+  osm.addTo(SP.map); L.control.layers({ "OpenStreetMap": osm, "Topographique": topo, "Satellite": sat }).addTo(SP.map);
   SP.layer = L.layerGroup().addTo(SP.map);
   SP.map.on("click", e => { if (SP.spider) { unspider(); return; } clickPoint(e.latlng.lat, e.latlng.lng); });
   SP.map.on("zoomend", () => declutter());

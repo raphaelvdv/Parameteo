@@ -65,7 +65,7 @@ Sections repérées par des commentaires `// ---------- … ----------`, dans ce
 | Nature du sol | Overpass (mêmes miroirs), requête `is_in(lat,lon)` + `make pt n=k` pour séparer les points ; point lu à 150 m sous le déco dans son axe | Non testé sur le vrai service (Overpass bloqué dans l'environnement de développement) ; résultats gardés en `localStorage` (`emagramme-sol`) |
 | Balises Pioupiou | `https://api.pioupiou.fr/v1/live/all` | Les stations OpenWindMap ne sont pas dans les relevés FFVL |
 | Sites (option) | Overpass (4 miroirs), ParaglidingEarth | Gardés 7 jours |
-| Fonds de carte | OpenTopoMap, OpenStreetMap, Esri | Leaflet 1.9.4 via cdnjs |
+| Fonds de carte | OpenStreetMap (par défaut), OpenTopoMap, Esri | Leaflet 1.9.4 via cdnjs |
 
 L'API `data.ffvl.fr` exige une clé : **ne pas l'utiliser**, les mêmes données sont en open data sur data.gouv.fr (le lien `/api/1/datasets/r/<id>` redirige vers le fichier le plus récent et autorise les appels depuis le navigateur).
 
